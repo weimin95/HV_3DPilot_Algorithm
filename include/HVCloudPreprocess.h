@@ -1,0 +1,65 @@
+#pragma once
+#include "node_engine.h"
+#include "3d_pliot_error.h"
+#include "3d_pilot_public_def.h"
+
+#include <string>
+
+class HVCloudPreprocess : public NodeEngine {
+public:
+    HVCloudPreprocess();
+    ~HVCloudPreprocess();
+
+    int init();
+
+    int run();
+
+    // 0: HVPointCloud* 3D点云
+	// 1: 预处理类型 (0: SOR; 1: 半径滤波; 2: 体素滤波)
+    // 2: k近邻数(SOR)
+    // 3: nSigma(SOR)
+    // 4: 半径大小
+    // 5: 半径滤波点数阈值
+    // 6: 体素大小
+    int set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID = std::vector<int>());
+
+    std::vector<void*> get_algorithm_result();
+
+    std::vector<int> get_algorithm_input_params_type();
+
+    std::vector<int> get_algorithm_output_params_type();
+
+    std::vector<std::string> get_algorithm_input_params_name();
+
+    std::vector<std::string> get_algorithm_output_params_name();
+
+    std::vector<bool> get_algorithm_input_params_bindable();
+
+    int get_algorithm_execute_status();
+
+    std::string get_algorithm_error_message();
+
+    long get_algorithm_use_time();
+
+	bool algorithm_params_setting_status();
+
+	bool algorithm_init_status();
+
+private:
+    std::shared_ptr<HVPointCloud> inputCloud;
+    std::shared_ptr<HVPointCloud> resultCloud;
+
+    int type = 0;// 预处理类型
+    int k = 30;// sor滤波器近邻数
+    float nSigma = 1.5;// sor滤波器nSigma
+    float radius = 1.0;// 半径滤波器半径
+    int pointsThrehold = 100;// 半径滤波点数阈值
+    float voxelSize = 1.0;// 体素大小
+
+    int execute_status = 0;
+    long run_time = 0;
+    std::string error_msg;
+};
+
+extern "C" __declspec(dllexport) NodeEngine* CreateInstance();
+extern "C" __declspec(dllexport) std::string GetInstanceName();
