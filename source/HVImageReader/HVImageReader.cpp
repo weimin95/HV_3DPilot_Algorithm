@@ -1,6 +1,9 @@
 #include "HVImageReader.h"
 #include "HVUtils.h"
+#include "json.hpp"
+
 #include <chrono>
+#include <fstream>
 
 HVImageReader::HVImageReader()
 {
@@ -21,21 +24,14 @@ int HVImageReader::run()
 {
 	auto start = std::chrono::high_resolution_clock::now();
 
-	cv::Mat img = cv::imread(path, cv::IMREAD_UNCHANGED);
+	cv::Mat img = cv::imread(image_path, cv::IMREAD_UNCHANGED);
 	if (img.empty()) 
 	{
 		error_msg = "Read image failed";
 		return ALGORITHM_RUN_ERROR;
 	}
 
-	ImageDataInfo2D img_info;
-	img_info.width = img.cols;
-	img_info.height = img.rows;
-	img_info.channels = img.channels();
-	size_t data_size = img.cols * img.rows * img.channels() * sizeof(unsigned char);
-	img_info.image_data = new char[data_size];
-	std::memcpy(img_info.image_data, img.data, data_size);
-	resultImg = std::make_shared<ImageDataInfo2D>(img_info);
+	resultImg = std::make_shared<ImageDataInfo2D>(ImageConverter::FromMat(img));
 
 	auto end = std::chrono::high_resolution_clock::now();
 	run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -47,11 +43,12 @@ int HVImageReader::run()
 
 int HVImageReader::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)
 {
-	if (params.size() <1) 
+	if (params.size() <1 || params[0] == nullptr)
 	{
 		return INVALID_PARAMS_NUM;
 	}
-	path = *static_cast<std::string*>(params[0]);
+
+	image_path = cast_param<std::string>(params, 0);
 
 	return SUCCESS;
 }
@@ -111,11 +108,85 @@ bool HVImageReader::algorithm_init_status()
 	return true;
 }
 
+bool HVImageReader::save_params_to_json(const std::string& filePath)
+{
+    try {
+        nlohmann::json params_json = nlohmann::json::array();
+
+        add_param(params_json, "image_path", HV_STRING, this->image_path);
+
+        // 写入文件
+        std::ofstream file(filePath);
+        if (!file.is_open()) {
+            return false;
+        }
+        file << params_json.dump(4);
+        file.close();
+
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
+
+bool HVImageReader::load_params_from_json(const std::string& filePath)
+{
+    try {
+        // 读取文件
+        std::ifstream file(filePath);
+        if (!file.is_open()) {
+            return false;
+        }
+
+        nlohmann::json params_json;
+        file >> params_json;
+        file.close();
+
+        // 检查JSON是否为数组
+        if (!params_json.is_array()) {
+            return false;
+        }
+
+        // 遍历参数数组
+        for (const auto& param_json : params_json) {
+            // 检查必要字段是否存在
+            if (!param_json.contains("name") || !param_json.contains("type")) {
+                continue;
+            }
+
+            std::string param_name = param_json["name"];
+            int param_type = param_json["type"];
+
+            // 根据参数名称进行处理
+            if (param_name == "image_path") {
+                // 设置到类成员变量
+                this->image_path = param_json["value"];
+            }
+        }
+
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
+
+std::vector<void*> HVImageReader::get_current_params()
+{
+	return { &image_path };
+}
+
+AlgorithmType HVImageReader::get_algorithm_type()
+{
+    return AlgorithmType::Capture;
+}
+
 NodeEngine* CreateInstance() {
 	// 每一个 DLL 内部返回自己具体的实现类
 	return new HVImageReader();
 }
 
 std::string GetInstanceName() {
-	return "Image Read"; // 告知主程序此 DLL 代表的类型
+	return "Image read"; // 告知主程序此 DLL 代表的类型
 }

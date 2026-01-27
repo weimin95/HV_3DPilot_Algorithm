@@ -19,6 +19,8 @@ public:
 
     std::vector<void*> get_algorithm_result();
 
+    std::vector<void*> get_current_params();
+
     std::vector<int> get_algorithm_input_params_type();
 
     std::vector<int> get_algorithm_output_params_type();
@@ -39,8 +41,14 @@ public:
 
 	bool algorithm_init_status();
 
+    bool save_params_to_json(const std::string& filePath);
+
+    bool load_params_from_json(const std::string& filePath);
+
+    AlgorithmType get_algorithm_type();
+
 private:
-    std::string path;
+    std::string cloud_path;
     std::shared_ptr<HVPointCloud> cloudout;
 
     int execute_status = 0;

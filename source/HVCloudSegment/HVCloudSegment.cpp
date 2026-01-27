@@ -1,22 +1,25 @@
-#include "HVCloudPreprocess.h"
+#include "HVCloudSegment.h"
 #include "HVUtils.h"
 
-HVCloudPreprocess::HVCloudPreprocess()
+#include <chrono>
+
+
+HVCloudSegment::HVCloudSegment()
 {
 
 }
 
-HVCloudPreprocess::~HVCloudPreprocess()
+HVCloudSegment::~HVCloudSegment()
 {
 
 }
 
-int HVCloudPreprocess::init()
+int HVCloudSegment::init()
 {
 	return SUCCESS;
 }
 
-int HVCloudPreprocess::run()
+int HVCloudSegment::run()
 {
     auto start = std::chrono::steady_clock::now();
 
@@ -63,11 +66,11 @@ int HVCloudPreprocess::run()
     return 0;
 }
 
-int HVCloudPreprocess::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)
+int HVCloudSegment::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)
 {
     if (paramID.size() == 0)
     {
-        inputCloud = cast_param_sharedPtr<HVPointCloud>(params, paramID[0]);
+        inputCloud = cast_param_sharedPtr<HVPointCloud>(params, 0);
         type = cast_param<int>(params, 1);
         k = cast_param<int>(params, 2);
         nSigma = cast_param<float>(params, 3);
@@ -106,91 +109,83 @@ int HVCloudPreprocess::set_algorithm_params(const std::vector<void*>& params, co
             default:
                 break;
             }
-		}
+        }
     }
 
-	return SUCCESS;
+    return SUCCESS;
 }
 
-std::vector<void*> HVCloudPreprocess::get_current_params()
+std::vector<void*> HVCloudSegment::get_current_params()
 {
-    return {
-        &inputCloud,
-        &type,
-        &k,
-        &nSigma,
-        &radius,
-        &pointsThrehold,
-        &voxelSize
-	};
+	return { &inputCloud, &type, &k, &nSigma, &radius, &pointsThrehold, &voxelSize };
 }
 
-std::vector<void*> HVCloudPreprocess::get_algorithm_result()
+std::vector<void*> HVCloudSegment::get_algorithm_result()
 {
 	return { &resultCloud };
 }
 
-std::vector<int> HVCloudPreprocess::get_algorithm_input_params_type()
+std::vector<int> HVCloudSegment::get_algorithm_input_params_type()
 {
     return { HV_POINTCLOUD, HV_INT, HV_INT, HV_FLOAT, HV_FLOAT, HV_INT, HV_FLOAT };
 }
 
-std::vector<int> HVCloudPreprocess::get_algorithm_output_params_type()
+std::vector<int> HVCloudSegment::get_algorithm_output_params_type()
 {
     return { HV_POINTCLOUD };
 }
 
-std::vector<std::string> HVCloudPreprocess::get_algorithm_input_params_name()
+std::vector<std::string> HVCloudSegment::get_algorithm_input_params_name()
 {
     return { "input cloud", "preprocess type", "k", "nSigma", "radius", "points threshold", "voxel size" };
 }
 
-std::vector<std::string> HVCloudPreprocess::get_algorithm_output_params_name()
+std::vector<std::string> HVCloudSegment::get_algorithm_output_params_name()
 {
     return { "output point cloud" };
 }
 
-std::vector<bool> HVCloudPreprocess::get_algorithm_input_params_bindable()
+std::vector<bool> HVCloudSegment::get_algorithm_input_params_bindable()
 {
     return { true, false, false, false, false, false, false };
 }
 
-int HVCloudPreprocess::get_algorithm_execute_status()
+int HVCloudSegment::get_algorithm_execute_status()
 {
 	return execute_status;
 }
 
-std::string HVCloudPreprocess::get_algorithm_error_message()
+std::string HVCloudSegment::get_algorithm_error_message()
 {
     return error_msg;
 }
 
-long HVCloudPreprocess::get_algorithm_use_time()
+long HVCloudSegment::get_algorithm_use_time()
 {
 	return run_time;
 }
 
-bool HVCloudPreprocess::algorithm_params_setting_status()
+bool HVCloudSegment::algorithm_params_setting_status()
 {
 	return true;
 }
 
-bool HVCloudPreprocess::algorithm_init_status()
+bool HVCloudSegment::algorithm_init_status()
 {
 	return true;
 }
 
-bool HVCloudPreprocess::save_params_to_json(const std::string& filePath)
+bool HVCloudSegment::save_params_to_json(const std::string& filePath)
 {
     try {
         nlohmann::json params_json = nlohmann::json::array();
 
-		add_param(params_json, "type", HV_INT, this->type);
-		add_param(params_json, "k", HV_INT, this->k);
-		add_param(params_json, "nSigma", HV_FLOAT, this->nSigma);
-		add_param(params_json, "radius", HV_FLOAT, this->radius);
-		add_param(params_json, "pointsThrehold", HV_INT, this->pointsThrehold);
-		add_param(params_json, "voxelSize", HV_FLOAT, this->voxelSize);
+        add_param(params_json, "type", HV_INT, this->type);
+        add_param(params_json, "k", HV_INT, this->k);
+        add_param(params_json, "nSigma", HV_FLOAT, this->nSigma);
+        add_param(params_json, "radius", HV_FLOAT, this->radius);
+        add_param(params_json, "pointsThrehold", HV_INT, this->pointsThrehold);
+        add_param(params_json, "voxelSize", HV_FLOAT, this->voxelSize);
 
         // 写入文件
         std::ofstream file(filePath);
@@ -207,7 +202,7 @@ bool HVCloudPreprocess::save_params_to_json(const std::string& filePath)
     }
 }
 
-bool HVCloudPreprocess::load_params_from_json(const std::string& filePath)
+bool HVCloudSegment::load_params_from_json(const std::string& filePath)
 {
     try {
         // 读取文件
@@ -274,16 +269,16 @@ bool HVCloudPreprocess::load_params_from_json(const std::string& filePath)
     }
 }
 
-AlgorithmType HVCloudPreprocess::get_algorithm_type()
+AlgorithmType HVCloudSegment::get_algorithm_type()
 {
     return AlgorithmType::PointCloudProcess;
 }
 
 NodeEngine* CreateInstance() {
     // 每一个 DLL 内部返回自己具体的实现类
-    return new HVCloudPreprocess();
+    return new HVCloudSegment();
 }
 
 std::string GetInstanceName() {
-    return "Point cloud preprocess"; // 告知主程序此 DLL 代表的类型
+    return "Point cloud segment"; // 告知主程序此 DLL 代表的类型
 }

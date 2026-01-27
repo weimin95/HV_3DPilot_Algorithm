@@ -50,7 +50,37 @@ include_directories(
 add_definitions(${PCL_DEFINITIONS})
 link_directories(${PCL_LIBRARY_DIRS})
 
-# 2. 定义自动化生成 DLL 的宏
+# ==================== Common 库配置 ====================
+# 收集 common 目录下的所有源文件和头文件
+file(GLOB_RECURSE COMMON_SRC "${CMAKE_SOURCE_DIR}/source/common/*.cpp")
+file(GLOB_RECURSE COMMON_HEADERS 
+    "${CMAKE_SOURCE_DIR}/source/common/*.h"
+    "${CMAKE_SOURCE_DIR}/source/common/*.hpp"
+)
+
+# 创建 common 静态库（不生成 DLL）
+if(COMMON_SRC)
+    message(STATUS "Building Common Library with ${COMMON_SRC}")
+    add_library(common_lib STATIC ${COMMON_SRC} ${COMMON_HEADERS})
+    
+    # 为 common 库链接必要的依赖
+    target_link_libraries(common_lib PUBLIC
+        ${OpenCV_LIBS} 
+        Open3D::Open3D
+        ${PCL_LIBRARIES}
+    )
+    
+    # 设置 common 库的包含目录
+    target_include_directories(common_lib PUBLIC
+        ${CMAKE_SOURCE_DIR}/source/common
+    )
+    
+    # 在 Visual Studio 中组织文件
+    source_group("Header Files" FILES ${COMMON_HEADERS})
+    source_group("Source Files" FILES ${COMMON_SRC})
+endif()
+
+# 2. 定义自动化生成 DLL 的宏（修改版：按目录分类输出）
 macro(add_algorithm_plugin DIR_NAME)
     # 获取该目录下所有的 .cpp 文件
     file(GLOB_RECURSE PLUGIN_SRC "${CMAKE_SOURCE_DIR}/source/${DIR_NAME}/*.cpp")
@@ -80,30 +110,40 @@ macro(add_algorithm_plugin DIR_NAME)
         # 统一设置导出宏
         target_compile_definitions(${DIR_NAME} PRIVATE HV_3DPILOT_EXPORTS)
         
-        # 统一输出到 plugins 目录
+        # ========== 修改部分：按目录名分类输出 DLL ==========
+        # 将 DLL 输出到 plugins/${DIR_NAME} 子目录下
         set_target_properties(${DIR_NAME} PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/HV_3DPilot_Algorithm$<CONFIG>/plugins"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/HV_3DPilot_Algorithm$<CONFIG>/plugins/${DIR_NAME}"
+            RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/HV_3DPilot_AlgorithmDebug/plugins/${DIR_NAME}"
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/HV_3DPilot_AlgorithmRelease/plugins/${DIR_NAME}"
         )
+        # ===================================================
         
         # 在 Visual Studio 中为头文件创建过滤器（文件夹）
         source_group("Header Files\\Plugin" FILES ${PLUGIN_HEADERS})
-        source_group("Header Files\\Common" FILES ${COMMON_HEADERS})
+        source_group("Header Files" FILES ${COMMON_HEADERS})
         source_group("Source Files" FILES ${PLUGIN_SRC})
         
-        # 链接库：同时链接 OpenCV、Open3D 和 PCL
+        # 链接库：同时链接 OpenCV、Open3D、PCL 和 common_lib
         target_link_libraries(${DIR_NAME} PRIVATE 
             ${OpenCV_LIBS} 
             Open3D::Open3D
             ${PCL_LIBRARIES}
         )
+        
+        # 如果 common_lib 存在，链接它
+        if(TARGET common_lib)
+            target_link_libraries(${DIR_NAME} PRIVATE common_lib)
+        endif()
     endif()
 endmacro()
 
-# 3. 自动遍历 src 目录下的第一级子文件夹
+# 3. 自动遍历 source 目录下的第一级子文件夹
 file(GLOB CHILDREN RELATIVE ${CMAKE_SOURCE_DIR}/source ${CMAKE_SOURCE_DIR}/source/*)
 
 foreach(CHILD ${CHILDREN})
-    if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/source/${CHILD})
+    # 排除 common 目录，不为它生成 DLL
+    if(IS_DIRECTORY ${CMAKE_SOURCE_DIR}/source/${CHILD} AND NOT ${CHILD} STREQUAL "common")
         # 为每个子文件夹调用宏，生成一个 DLL
         add_algorithm_plugin(${CHILD})
     endif()

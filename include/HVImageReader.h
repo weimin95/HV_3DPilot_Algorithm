@@ -16,6 +16,8 @@ public:
 
     int set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID = std::vector<int>());
 
+    std::vector<void*> get_current_params();
+
     std::vector<void*> get_algorithm_result();
 
     std::vector<int> get_algorithm_input_params_type();
@@ -38,8 +40,14 @@ public:
 
 	bool algorithm_init_status();
 
+    bool save_params_to_json(const std::string& filePath);
+
+    bool load_params_from_json(const std::string& filePath);
+
+    AlgorithmType get_algorithm_type();
+
 private:
-	std::string path = "";
+	std::string image_path = "";
     std::shared_ptr<ImageDataInfo2D> resultImg;
     long run_time = 0;
     std::string error_msg;

@@ -5,10 +5,10 @@
 
 #include <string>
 
-class HVCloudPreprocess : public NodeEngine {
+class HVCloudSegment : public NodeEngine {
 public:
-    HVCloudPreprocess();
-    ~HVCloudPreprocess();
+    HVCloudSegment();
+    ~HVCloudSegment();
 
     int init();
 

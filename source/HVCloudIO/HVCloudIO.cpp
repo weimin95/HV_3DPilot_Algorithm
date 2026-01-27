@@ -1,9 +1,6 @@
 #include "HVCloudIO.h"
 #include "HVUtils.h"
 
-#include <chrono>
-
-
 HVCloudIO::HVCloudIO()
 {
 
@@ -24,7 +21,7 @@ int HVCloudIO::run()
     auto start = std::chrono::steady_clock::now();
 
     std::shared_ptr<open3d::geometry::PointCloud> cloud(new open3d::geometry::PointCloud);
-    if (open3d::io::ReadPointCloud(path, *cloud))
+    if (open3d::io::ReadPointCloud(cloud_path, *cloud))
     {
         execute_status = SUCCESS;
         error_msg = "Read point cloud success";
@@ -43,12 +40,12 @@ int HVCloudIO::run()
 
 int HVCloudIO::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)
 {
-    if (params.size() < 1)
+    if (params.size() < 1 || params[0] == nullptr)
     {
         error_msg = "Param set failed";
         return INVALID_PARAMS_NUM;
     }
-    path = *static_cast<std::string*>(params[0]);
+    cloud_path = cast_param<std::string>(params, 0);
 	return SUCCESS;
 }
 
@@ -105,6 +102,80 @@ bool HVCloudIO::algorithm_params_setting_status()
 bool HVCloudIO::algorithm_init_status()
 {
 	return true;
+}
+
+bool HVCloudIO::save_params_to_json(const std::string& filePath)
+{
+    try {
+        nlohmann::json params_json = nlohmann::json::array();
+
+		add_param(params_json, "cloud_path", HV_STRING, this->cloud_path);
+
+        // 写入文件
+        std::ofstream file(filePath);
+        if (!file.is_open()) {
+            return false;
+        }
+        file << params_json.dump(4);
+        file.close();
+
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
+
+bool HVCloudIO::load_params_from_json(const std::string& filePath)
+{
+    try {
+        // 读取文件
+        std::ifstream file(filePath);
+        if (!file.is_open()) {
+            return false;
+        }
+
+        nlohmann::json params_json;
+        file >> params_json;
+        file.close();
+
+        // 检查JSON是否为数组
+        if (!params_json.is_array()) {
+            return false;
+        }
+
+        // 遍历参数数组
+        for (const auto& param_json : params_json) {
+            // 检查必要字段是否存在
+            if (!param_json.contains("name") || !param_json.contains("type")) {
+                continue;
+            }
+
+            std::string param_name = param_json["name"];
+            int param_type = param_json["type"];
+
+            // 根据参数名称进行处理
+            if (param_name == "cloud_path") {
+                // 设置到类成员变量
+                this->cloud_path = param_json["value"];
+            }
+        }
+
+        return true;
+    }
+    catch (...) {
+        return false;
+    }
+}
+
+std::vector<void*> HVCloudIO::get_current_params()
+{
+	return { &cloud_path };
+}
+
+AlgorithmType HVCloudIO::get_algorithm_type()
+{
+    return AlgorithmType::Capture;
 }
 
 NodeEngine* CreateInstance() {
