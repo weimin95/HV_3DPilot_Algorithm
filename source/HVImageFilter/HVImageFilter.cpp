@@ -1,4 +1,4 @@
-#include "HVImageFilter.h"
+ï»¿#include "HVImageFilter.h"
 #include "HVUtils.h"
 #include <chrono>
 
@@ -20,7 +20,7 @@ int HVImageFilter::run()
 {
     auto start = std::chrono::steady_clock::now();
 
-    // 1. ÊäÈëÓ³Éä
+    // 1. è¾“å…¥æ˜ å°„
     cv::Mat input = ImageConverter::ToMat(*inputImg);
 
     cv::Mat output;
@@ -97,7 +97,9 @@ int HVImageFilter::set_algorithm_params(const std::vector<void*>& params, const 
 
 std::vector<void*> HVImageFilter::get_algorithm_result()
 {
-    return { &resultImg };
+    if (execute_status == SUCCESS)
+        return { &resultImg };
+    return { nullptr };
 }
 
 std::vector<int> HVImageFilter::get_algorithm_input_params_type()
@@ -123,6 +125,52 @@ std::vector<std::string> HVImageFilter::get_algorithm_output_params_name()
 std::vector<bool> HVImageFilter::get_algorithm_input_params_bindable()
 {
     return { true, false, false, false };
+}
+
+std::vector<ParamMetadata> HVImageFilter::get_algorithm_input_params_metadata()
+{
+    std::vector<ParamMetadata> metadata_list;
+
+    // å‚æ•°0: è¾“å…¥å›¾åƒ (å¯ç»‘å®šï¼Œæ— çº¦æŸ)
+    ParamMetadata meta0;
+    meta0.param_name = "input image";
+    meta0.param_description = "è¾“å…¥å›¾åƒ";
+    meta0.param_type = HV_IMAGEDATAINFO2D;
+    meta0.constraint_type = CONSTRAINT_NONE;
+    metadata_list.push_back(meta0);
+
+    // å‚æ•°1: æ»¤æ³¢ç±»å‹ (é€‰é¡¹çº¦æŸ)
+    ParamMetadata meta1;
+    meta1.param_name = "filter type";
+    meta1.param_description = "æ»¤æ³¢ç®—æ³•ç±»å‹";
+    meta1.param_type = HV_INT;
+    meta1.constraint_type = CONSTRAINT_OPTIONS;
+    meta1.options_constraint.AddOption("0", "Gaussian (é«˜æ–¯æ»¤æ³¢)");
+    meta1.options_constraint.AddOption("1", "Median (ä¸­å€¼æ»¤æ³¢)");
+    meta1.options_constraint.AddOption("2", "Bilateral (åŒè¾¹æ»¤æ³¢)");
+    meta1.options_constraint.default_index = 0;
+    metadata_list.push_back(meta1);
+
+    // å‚æ•°2: å·ç§¯æ ¸å¤§å° (èŒƒå›´çº¦æŸ)
+    ParamMetadata meta2;
+    meta2.param_name = "kernel size";
+    meta2.param_description = "å·ç§¯æ ¸å¤§å°ï¼ˆå¿…é¡»ä¸ºå¥‡æ•°ï¼‰";
+    meta2.param_type = HV_INT;
+    meta2.constraint_type = CONSTRAINT_RANGE;
+    meta2.range_constraint = RangeConstraint(1, 31, 3);
+    metadata_list.push_back(meta2);
+
+    // å‚æ•°3: sigmaå€¼ (èŒƒå›´çº¦æŸï¼Œä¾èµ–filter_typeä¸ºGaussianæˆ–Bilateral)
+    ParamMetadata meta3;
+    meta3.param_name = "sigma";
+    meta3.param_description = "æ ‡å‡†å·®ï¼ˆå¯¹Gaussianå’ŒBilateralæœ‰æ•ˆï¼‰";
+    meta3.param_type = HV_DOUBLE;
+    meta3.constraint_type = CONSTRAINT_RANGE;
+    meta3.range_constraint = RangeConstraint(0.1, 100.0, 1.0);
+    meta3.dependencies.push_back(ParamDependency(1, DEPENDS_ON_IN_LIST, {"0", "2"}));
+    metadata_list.push_back(meta3);
+
+    return metadata_list;
 }
 
 int HVImageFilter::get_algorithm_execute_status()
@@ -159,7 +207,7 @@ bool HVImageFilter::save_params_to_json(const std::string& filePath)
         add_param(params_json, "kernel_size", HV_DOUBLE, this->kernel_size);
         add_param(params_json, "sigma", HV_DOUBLE, this->sigma);
 
-        // Ğ´ÈëÎÄ¼ş
+        // å†™å…¥æ–‡ä»¶
         std::ofstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -177,7 +225,7 @@ bool HVImageFilter::save_params_to_json(const std::string& filePath)
 bool HVImageFilter::load_params_from_json(const std::string& filePath)
 {
     try {
-        // ¶ÁÈ¡ÎÄ¼ş
+        // è¯»å–æ–‡ä»¶
         std::ifstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -187,14 +235,14 @@ bool HVImageFilter::load_params_from_json(const std::string& filePath)
         file >> params_json;
         file.close();
 
-        // ¼ì²éJSONÊÇ·ñÎªÊı×é
+        // æ£€æŸ¥JSONæ˜¯å¦ä¸ºæ•°ç»„
         if (!params_json.is_array()) {
             return false;
         }
 
-        // ±éÀú²ÎÊıÊı×é
+        // éå†å‚æ•°æ•°ç»„
         for (const auto& param_json : params_json) {
-            // ¼ì²é±ØÒª×Ö¶ÎÊÇ·ñ´æÔÚ
+            // æ£€æŸ¥å¿…è¦å­—æ®µæ˜¯å¦å­˜åœ¨
             if (!param_json.contains("name") || !param_json.contains("type")) {
                 continue;
             }
@@ -202,19 +250,19 @@ bool HVImageFilter::load_params_from_json(const std::string& filePath)
             std::string param_name = param_json["name"];
             int param_type = param_json["type"];
 
-            // ¸ù¾İ²ÎÊıÃû³Æ½øĞĞ´¦Àí
+            // æ ¹æ®å‚æ•°åç§°è¿›è¡Œå¤„ç†
             if (param_name == "filter_type") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->filter_type = param_json["value"];
             }
 
             if (param_name == "kernel_size") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->kernel_size = param_json["value"];
             }
 
             if (param_name == "sigma") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->sigma = param_json["value"];
             }
         }
@@ -237,10 +285,10 @@ AlgorithmType HVImageFilter::get_algorithm_type()
 }
 
 NodeEngine* CreateInstance() {
-    // Ã¿Ò»¸ö DLL ÄÚ²¿·µ»Ø×Ô¼º¾ßÌåµÄÊµÏÖÀà
+    // æ¯ä¸€ä¸ª DLL å†…éƒ¨è¿”å›è‡ªå·±å…·ä½“çš„å®ç°ç±»
     return new HVImageFilter();
 }
 
 std::string GetInstanceName() {
-    return "Image filter"; // ¸æÖªÖ÷³ÌĞò´Ë DLL ´ú±íµÄÀàĞÍ
+    return "Image filter"; // å‘ŠçŸ¥ä¸»ç¨‹åºæ­¤ DLL ä»£è¡¨çš„ç±»å‹
 }

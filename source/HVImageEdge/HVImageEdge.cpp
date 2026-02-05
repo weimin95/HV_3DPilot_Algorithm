@@ -1,4 +1,4 @@
-#include "HVImageEdge.h"
+ï»¿#include "HVImageEdge.h"
 #include <opencv2/opencv.hpp>
 #include <chrono>
 
@@ -23,11 +23,11 @@ int HVImageEdge::run()
 {
     auto start = std::chrono::steady_clock::now();
 
-    // 1. wrap ÊäÈë
+    // 1. wrap è¾“å…¥
     cv::Mat src = ImageConverter::ToMat(*inputImg);
     cv::Mat gray;
 
-    // 2. ×ª»Ò¶È
+    // 2. è½¬ç°åº¦
     if (src.channels() == 3)
         cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
     else if (src.channels() == 4)
@@ -84,7 +84,9 @@ int HVImageEdge::set_algorithm_params(const std::vector<void*>& params, const st
 
 std::vector<void*> HVImageEdge::get_algorithm_result()
 {
-	return { &resultImg };
+    if (execute_status == SUCCESS)
+	    return { &resultImg };
+    return { nullptr };
 }
 
 std::vector<int> HVImageEdge::get_algorithm_input_params_type()
@@ -110,6 +112,39 @@ std::vector<std::string> HVImageEdge::get_algorithm_output_params_name()
 std::vector<bool> HVImageEdge::get_algorithm_input_params_bindable()
 {
     return { true, false, false };
+}
+
+std::vector<ParamMetadata> HVImageEdge::get_algorithm_input_params_metadata()
+{
+    std::vector<ParamMetadata> metadata_list;
+
+    // å‚æ•°0: è¾“å…¥å›¾åƒ (å¯ç»‘å®šï¼Œæ— çº¦æŸ)
+    ParamMetadata meta0;
+    meta0.param_name = "input image";
+    meta0.param_description = "è¾“å…¥å›¾åƒ";
+    meta0.param_type = HV_IMAGEDATAINFO2D;
+    meta0.constraint_type = CONSTRAINT_NONE;
+    metadata_list.push_back(meta0);
+
+    // å‚æ•°1: Cannyä½é˜ˆå€¼ (èŒƒå›´çº¦æŸ)
+    ParamMetadata meta1;
+    meta1.param_name = "low threshold";
+    meta1.param_description = "Cannyç®—æ³•ä½é˜ˆå€¼";
+    meta1.param_type = HV_DOUBLE;
+    meta1.constraint_type = CONSTRAINT_RANGE;
+    meta1.range_constraint = RangeConstraint(0.0, 500.0, 50.0);
+    metadata_list.push_back(meta1);
+
+    // å‚æ•°2: Cannyé«˜é˜ˆå€¼ (èŒƒå›´çº¦æŸ)
+    ParamMetadata meta2;
+    meta2.param_name = "high threshold";
+    meta2.param_description = "Cannyç®—æ³•é«˜é˜ˆå€¼";
+    meta2.param_type = HV_DOUBLE;
+    meta2.constraint_type = CONSTRAINT_RANGE;
+    meta2.range_constraint = RangeConstraint(0.0, 500.0, 150.0);
+    metadata_list.push_back(meta2);
+
+    return metadata_list;
 }
 
 int HVImageEdge::get_algorithm_execute_status()
@@ -145,7 +180,7 @@ bool HVImageEdge::save_params_to_json(const std::string& filePath)
         add_param(params_json, "th1", HV_DOUBLE, this->th1);
         add_param(params_json, "th2", HV_DOUBLE, this->th2);
 
-        // Ğ´ÈëÎÄ¼ş
+        // å†™å…¥æ–‡ä»¶
         std::ofstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -163,7 +198,7 @@ bool HVImageEdge::save_params_to_json(const std::string& filePath)
 bool HVImageEdge::load_params_from_json(const std::string& filePath)
 {
     try {
-        // ¶ÁÈ¡ÎÄ¼ş
+        // è¯»å–æ–‡ä»¶
         std::ifstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -173,14 +208,14 @@ bool HVImageEdge::load_params_from_json(const std::string& filePath)
         file >> params_json;
         file.close();
 
-        // ¼ì²éJSONÊÇ·ñÎªÊı×é
+        // æ£€æŸ¥JSONæ˜¯å¦ä¸ºæ•°ç»„
         if (!params_json.is_array()) {
             return false;
         }
 
-        // ±éÀú²ÎÊıÊı×é
+        // éå†å‚æ•°æ•°ç»„
         for (const auto& param_json : params_json) {
-            // ¼ì²é±ØÒª×Ö¶ÎÊÇ·ñ´æÔÚ
+            // æ£€æŸ¥å¿…è¦å­—æ®µæ˜¯å¦å­˜åœ¨
             if (!param_json.contains("name") || !param_json.contains("type")) {
                 continue;
             }
@@ -188,14 +223,14 @@ bool HVImageEdge::load_params_from_json(const std::string& filePath)
             std::string param_name = param_json["name"];
             int param_type = param_json["type"];
 
-            // ¸ù¾İ²ÎÊıÃû³Æ½øĞĞ´¦Àí
+            // æ ¹æ®å‚æ•°åç§°è¿›è¡Œå¤„ç†
             if (param_name == "th1") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->th1 = param_json["value"];
             }
 
             if (param_name == "th2") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->th2 = param_json["value"];
             }
         }
@@ -218,10 +253,10 @@ AlgorithmType HVImageEdge::get_algorithm_type()
 }
 
 NodeEngine* CreateInstance() {
-    // Ã¿Ò»¸ö DLL ÄÚ²¿·µ»Ø×Ô¼º¾ßÌåµÄÊµÏÖÀà
+    // æ¯ä¸€ä¸ª DLL å†…éƒ¨è¿”å›è‡ªå·±å…·ä½“çš„å®ç°ç±»
     return new HVImageEdge();
 }
 
 std::string GetInstanceName() {
-    return "Image edge"; // ¸æÖªÖ÷³ÌĞò´Ë DLL ´ú±íµÄÀàĞÍ
+    return "Image edge"; // å‘ŠçŸ¥ä¸»ç¨‹åºæ­¤ DLL ä»£è¡¨çš„ç±»å‹
 }

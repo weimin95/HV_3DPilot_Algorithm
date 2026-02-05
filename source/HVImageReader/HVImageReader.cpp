@@ -1,4 +1,4 @@
-#include "HVImageReader.h"
+ï»¿#include "HVImageReader.h"
 #include "HVUtils.h"
 #include "json.hpp"
 
@@ -24,13 +24,15 @@ int HVImageReader::run()
 {
 	auto start = std::chrono::high_resolution_clock::now();
 
+    execute_status = -1;
 	cv::Mat img = cv::imread(image_path, cv::IMREAD_UNCHANGED);
 	if (img.empty()) 
 	{
 		error_msg = "Read image failed";
+		execute_status = ALGORITHM_RUN_ERROR;
 		return ALGORITHM_RUN_ERROR;
 	}
-
+    execute_status = SUCCESS;
 	resultImg = std::make_shared<ImageDataInfo2D>(ImageConverter::FromMat(img));
 
 	auto end = std::chrono::high_resolution_clock::now();
@@ -55,7 +57,9 @@ int HVImageReader::set_algorithm_params(const std::vector<void*>& params, const 
 
 std::vector<void*> HVImageReader::get_algorithm_result()
 {
-	return { &resultImg };
+	if (execute_status == SUCCESS)
+	    return { &resultImg };
+	return { nullptr };
 }
 
 std::vector<int> HVImageReader::get_algorithm_input_params_type()
@@ -81,6 +85,22 @@ std::vector<std::string> HVImageReader::get_algorithm_output_params_name()
 std::vector<bool> HVImageReader::get_algorithm_input_params_bindable()
 {
 	return { false };
+}
+
+std::vector<ParamMetadata> HVImageReader::get_algorithm_input_params_metadata()
+{
+    std::vector<ParamMetadata> metadata_list;
+
+    // å‚æ•°0: å›¾åƒæ–‡ä»¶è·¯å¾„ (æ–‡ä»¶è·¯å¾„çº¦æŸ)
+    ParamMetadata meta0;
+    meta0.param_name = "image path";
+    meta0.param_description = "å›¾åƒæ–‡ä»¶è·¯å¾„";
+    meta0.param_type = HV_STRING;
+    meta0.constraint_type = CONSTRAINT_FILE_PATH;
+    meta0.file_filter = "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.tif";
+    metadata_list.push_back(meta0);
+
+    return metadata_list;
 }
 
 int HVImageReader::get_algorithm_execute_status()
@@ -115,7 +135,7 @@ bool HVImageReader::save_params_to_json(const std::string& filePath)
 
         add_param(params_json, "image_path", HV_STRING, this->image_path);
 
-        // Ğ´ÈëÎÄ¼ş
+        // å†™å…¥æ–‡ä»¶
         std::ofstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -133,7 +153,7 @@ bool HVImageReader::save_params_to_json(const std::string& filePath)
 bool HVImageReader::load_params_from_json(const std::string& filePath)
 {
     try {
-        // ¶ÁÈ¡ÎÄ¼ş
+        // è¯»å–æ–‡ä»¶
         std::ifstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -143,14 +163,14 @@ bool HVImageReader::load_params_from_json(const std::string& filePath)
         file >> params_json;
         file.close();
 
-        // ¼ì²éJSONÊÇ·ñÎªÊı×é
+        // æ£€æŸ¥JSONæ˜¯å¦ä¸ºæ•°ç»„
         if (!params_json.is_array()) {
             return false;
         }
 
-        // ±éÀú²ÎÊıÊı×é
+        // éå†å‚æ•°æ•°ç»„
         for (const auto& param_json : params_json) {
-            // ¼ì²é±ØÒª×Ö¶ÎÊÇ·ñ´æÔÚ
+            // æ£€æŸ¥å¿…è¦å­—æ®µæ˜¯å¦å­˜åœ¨
             if (!param_json.contains("name") || !param_json.contains("type")) {
                 continue;
             }
@@ -158,9 +178,9 @@ bool HVImageReader::load_params_from_json(const std::string& filePath)
             std::string param_name = param_json["name"];
             int param_type = param_json["type"];
 
-            // ¸ù¾İ²ÎÊıÃû³Æ½øĞĞ´¦Àí
+            // æ ¹æ®å‚æ•°åç§°è¿›è¡Œå¤„ç†
             if (param_name == "image_path") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->image_path = param_json["value"];
             }
         }
@@ -183,10 +203,10 @@ AlgorithmType HVImageReader::get_algorithm_type()
 }
 
 NodeEngine* CreateInstance() {
-	// Ã¿Ò»¸ö DLL ÄÚ²¿·µ»Ø×Ô¼º¾ßÌåµÄÊµÏÖÀà
+	// æ¯ä¸€ä¸ª DLL å†…éƒ¨è¿”å›è‡ªå·±å…·ä½“çš„å®ç°ç±»
 	return new HVImageReader();
 }
 
 std::string GetInstanceName() {
-	return "Image read"; // ¸æÖªÖ÷³ÌĞò´Ë DLL ´ú±íµÄÀàĞÍ
+	return "Image read"; // å‘ŠçŸ¥ä¸»ç¨‹åºæ­¤ DLL ä»£è¡¨çš„ç±»å‹
 }

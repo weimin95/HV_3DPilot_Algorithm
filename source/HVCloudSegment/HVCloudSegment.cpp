@@ -1,4 +1,4 @@
-#include "HVCloudSegment.h"
+ï»¿#include "HVCloudSegment.h"
 #include "HVUtils.h"
 
 #include <chrono>
@@ -122,7 +122,9 @@ std::vector<void*> HVCloudSegment::get_current_params()
 
 std::vector<void*> HVCloudSegment::get_algorithm_result()
 {
-	return { &resultCloud };
+	if (execute_status == SUCCESS)
+	    return { &resultCloud };
+    return { nullptr };
 }
 
 std::vector<int> HVCloudSegment::get_algorithm_input_params_type()
@@ -148,6 +150,83 @@ std::vector<std::string> HVCloudSegment::get_algorithm_output_params_name()
 std::vector<bool> HVCloudSegment::get_algorithm_input_params_bindable()
 {
     return { true, false, false, false, false, false, false };
+}
+
+std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
+{
+    std::vector<ParamMetadata> metadata_list;
+
+    // å‚æ•°0: è¾“å…¥ç‚¹äº‘ (å¯ç»‘å®šï¼Œæ— çº¦æŸ)
+    ParamMetadata meta0;
+    meta0.param_name = "input cloud";
+    meta0.param_description = "è¾“å…¥ç‚¹äº‘æ•°æ®";
+    meta0.param_type = HV_POINTCLOUD;
+    meta0.constraint_type = CONSTRAINT_NONE;
+    metadata_list.push_back(meta0);
+
+    // å‚æ•°1: é¢„å¤„ç†ç±»å‹ (é€‰é¡¹çº¦æŸ)
+    ParamMetadata meta1;
+    meta1.param_name = "preprocess type";
+    meta1.param_description = "é¢„å¤„ç†ç®—æ³•ç±»å‹";
+    meta1.param_type = HV_INT;
+    meta1.constraint_type = CONSTRAINT_OPTIONS;
+    meta1.options_constraint.AddOption("0", "SOR (ç»Ÿè®¡æ»¤æ³¢)");
+    meta1.options_constraint.AddOption("1", "Radius (åŠå¾„æ»¤æ³¢)");
+    meta1.options_constraint.AddOption("2", "Voxel (ä½“ç´ ä¸‹é‡‡æ ·)");
+    meta1.options_constraint.default_index = 0;
+    metadata_list.push_back(meta1);
+
+    // å‚æ•°2: kå€¼ (èŒƒå›´çº¦æŸï¼ŒSORæ»¤æ³¢å‚æ•°ï¼Œä¾èµ–type=0)
+    ParamMetadata meta2;
+    meta2.param_name = "k";
+    meta2.param_description = "SORæ»¤æ³¢é‚»åŸŸç‚¹ä¸ªæ•°";
+    meta2.param_type = HV_INT;
+    meta2.constraint_type = CONSTRAINT_RANGE;
+    meta2.range_constraint = RangeConstraint(1, 100, 30);
+    meta2.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"0"}));
+    metadata_list.push_back(meta2);
+
+    // å‚æ•°3: nSigma (èŒƒå›´çº¦æŸï¼ŒSORæ»¤æ³¢å‚æ•°ï¼Œä¾èµ–type=0)
+    ParamMetadata meta3;
+    meta3.param_name = "nSigma";
+    meta3.param_description = "SORæ»¤æ³¢æ ‡å‡†å·®å€æ•°";
+    meta3.param_type = HV_FLOAT;
+    meta3.constraint_type = CONSTRAINT_RANGE;
+    meta3.range_constraint = RangeConstraint(0.1, 10.0, 1.5);
+    meta3.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"0"}));
+    metadata_list.push_back(meta3);
+
+    // å‚æ•°4: radius (èŒƒå›´çº¦æŸï¼ŒåŠå¾„æ»¤æ³¢å‚æ•°ï¼Œä¾èµ–type=1)
+    ParamMetadata meta4;
+    meta4.param_name = "radius";
+    meta4.param_description = "åŠå¾„æ»¤æ³¢æœç´¢åŠå¾„";
+    meta4.param_type = HV_FLOAT;
+    meta4.constraint_type = CONSTRAINT_RANGE;
+    meta4.range_constraint = RangeConstraint(0.01, 100.0, 1.0);
+    meta4.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
+    metadata_list.push_back(meta4);
+
+    // å‚æ•°5: pointsThreshold (èŒƒå›´çº¦æŸï¼ŒåŠå¾„æ»¤æ³¢å‚æ•°ï¼Œä¾èµ–type=1)
+    ParamMetadata meta5;
+    meta5.param_name = "points threshold";
+    meta5.param_description = "åŠå¾„æ»¤æ³¢é‚»åŸŸç‚¹é˜ˆå€¼";
+    meta5.param_type = HV_INT;
+    meta5.constraint_type = CONSTRAINT_RANGE;
+    meta5.range_constraint = RangeConstraint(1, 1000, 100);
+    meta5.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
+    metadata_list.push_back(meta5);
+
+    // å‚æ•°6: voxelSize (èŒƒå›´çº¦æŸï¼Œä½“ç´ ä¸‹é‡‡æ ·å‚æ•°ï¼Œä¾èµ–type=2)
+    ParamMetadata meta6;
+    meta6.param_name = "voxel size";
+    meta6.param_description = "ä½“ç´ å¤§å°";
+    meta6.param_type = HV_FLOAT;
+    meta6.constraint_type = CONSTRAINT_RANGE;
+    meta6.range_constraint = RangeConstraint(0.001, 100.0, 1.0);
+    meta6.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"2"}));
+    metadata_list.push_back(meta6);
+
+    return metadata_list;
 }
 
 int HVCloudSegment::get_algorithm_execute_status()
@@ -187,7 +266,7 @@ bool HVCloudSegment::save_params_to_json(const std::string& filePath)
         add_param(params_json, "pointsThrehold", HV_INT, this->pointsThrehold);
         add_param(params_json, "voxelSize", HV_FLOAT, this->voxelSize);
 
-        // Ğ´ÈëÎÄ¼ş
+        // å†™å…¥æ–‡ä»¶
         std::ofstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -205,7 +284,7 @@ bool HVCloudSegment::save_params_to_json(const std::string& filePath)
 bool HVCloudSegment::load_params_from_json(const std::string& filePath)
 {
     try {
-        // ¶ÁÈ¡ÎÄ¼ş
+        // è¯»å–æ–‡ä»¶
         std::ifstream file(filePath);
         if (!file.is_open()) {
             return false;
@@ -215,14 +294,14 @@ bool HVCloudSegment::load_params_from_json(const std::string& filePath)
         file >> params_json;
         file.close();
 
-        // ¼ì²éJSONÊÇ·ñÎªÊı×é
+        // æ£€æŸ¥JSONæ˜¯å¦ä¸ºæ•°ç»„
         if (!params_json.is_array()) {
             return false;
         }
 
-        // ±éÀú²ÎÊıÊı×é
+        // éå†å‚æ•°æ•°ç»„
         for (const auto& param_json : params_json) {
-            // ¼ì²é±ØÒª×Ö¶ÎÊÇ·ñ´æÔÚ
+            // æ£€æŸ¥å¿…è¦å­—æ®µæ˜¯å¦å­˜åœ¨
             if (!param_json.contains("name") || !param_json.contains("type")) {
                 continue;
             }
@@ -230,34 +309,34 @@ bool HVCloudSegment::load_params_from_json(const std::string& filePath)
             std::string param_name = param_json["name"];
             int param_type = param_json["type"];
 
-            // ¸ù¾İ²ÎÊıÃû³Æ½øĞĞ´¦Àí
+            // æ ¹æ®å‚æ•°åç§°è¿›è¡Œå¤„ç†
             if (param_name == "type") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->type = param_json["value"];
             }
 
             if (param_name == "k") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->k = param_json["value"];
             }
 
             if (param_name == "nSigma") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->nSigma = param_json["value"];
             }
 
             if (param_name == "radius") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->radius = param_json["value"];
             }
 
             if (param_name == "pointsThrehold") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->pointsThrehold = param_json["value"];
             }
 
             if (param_name == "voxelSize") {
-                // ÉèÖÃµ½Àà³ÉÔ±±äÁ¿
+                // è®¾ç½®åˆ°ç±»æˆå‘˜å˜é‡
                 this->voxelSize = param_json["value"];
             }
         }
@@ -275,10 +354,10 @@ AlgorithmType HVCloudSegment::get_algorithm_type()
 }
 
 NodeEngine* CreateInstance() {
-    // Ã¿Ò»¸ö DLL ÄÚ²¿·µ»Ø×Ô¼º¾ßÌåµÄÊµÏÖÀà
+    // æ¯ä¸€ä¸ª DLL å†…éƒ¨è¿”å›è‡ªå·±å…·ä½“çš„å®ç°ç±»
     return new HVCloudSegment();
 }
 
 std::string GetInstanceName() {
-    return "Point cloud segment"; // ¸æÖªÖ÷³ÌĞò´Ë DLL ´ú±íµÄÀàĞÍ
+    return "Point cloud segment"; // å‘ŠçŸ¥ä¸»ç¨‹åºæ­¤ DLL ä»£è¡¨çš„ç±»å‹
 }

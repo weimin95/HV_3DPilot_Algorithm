@@ -1,7 +1,8 @@
-#pragma once
+ï»¿#pragma once
 #include "node_engine.h"
 #include "3d_pliot_error.h"
 #include "3d_pilot_public_def.h"
+#include "param_meta_data.h"
 
 #include <string>
 
@@ -14,13 +15,13 @@ public:
 
     int run();
 
-    // 0: HVPointCloud* 3DµãÔÆ
-	// 1: Ô¤´¦ÀíÀàĞÍ (0: SOR; 1: °ë¾¶ÂË²¨; 2: ÌåËØÂË²¨)
-    // 2: k½üÁÚÊı(SOR)
+    // 0: HVPointCloud* 3Dç‚¹äº‘
+	// 1: é¢„å¤„ç†ç±»å‹ (0: SOR; 1: åŠå¾„æ»¤æ³¢; 2: ä½“ç´ æ»¤æ³¢)
+    // 2: kè¿‘é‚»æ•°(SOR)
     // 3: nSigma(SOR)
-    // 4: °ë¾¶´óĞ¡
-    // 5: °ë¾¶ÂË²¨µãÊıãĞÖµ
-    // 6: ÌåËØ´óĞ¡
+    // 4: åŠå¾„å¤§å°
+    // 5: åŠå¾„æ»¤æ³¢ç‚¹æ•°é˜ˆå€¼
+    // 6: ä½“ç´ å¤§å°
     int set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID = std::vector<int>());
 
     std::vector<void*> get_current_params();
@@ -36,6 +37,8 @@ public:
     std::vector<std::string> get_algorithm_output_params_name();
 
     std::vector<bool> get_algorithm_input_params_bindable();
+
+    std::vector<ParamMetadata> get_algorithm_input_params_metadata() override;
 
     int get_algorithm_execute_status();
 
@@ -57,14 +60,14 @@ private:
     std::shared_ptr<HVPointCloud> inputCloud;
     std::shared_ptr<HVPointCloud> resultCloud;
 
-    int type = 0;// Ô¤´¦ÀíÀàĞÍ
-    int k = 30;// sorÂË²¨Æ÷½üÁÚÊı
-    float nSigma = 1.5;// sorÂË²¨Æ÷nSigma
-    float radius = 1.0;// °ë¾¶ÂË²¨Æ÷°ë¾¶
-    int pointsThrehold = 100;// °ë¾¶ÂË²¨µãÊıãĞÖµ
-    float voxelSize = 1.0;// ÌåËØ´óĞ¡
+    int type = 0;// é¢„å¤„ç†ç±»å‹
+    int k = 30;// soræ»¤æ³¢å™¨è¿‘é‚»æ•°
+    float nSigma = 1.5;// soræ»¤æ³¢å™¨nSigma
+    float radius = 1.0;// åŠå¾„æ»¤æ³¢å™¨åŠå¾„
+    int pointsThrehold = 100;// åŠå¾„æ»¤æ³¢ç‚¹æ•°é˜ˆå€¼
+    float voxelSize = 1.0;// ä½“ç´ å¤§å°
 
-    int execute_status = 0;
+    int execute_status = -1;
     long run_time = 0;
     std::string error_msg;
 };

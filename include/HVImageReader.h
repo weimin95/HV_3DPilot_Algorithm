@@ -1,7 +1,8 @@
-#pragma once
+﻿#pragma once
 #include "node_engine.h"
 #include "3d_pliot_error.h"
 #include "3d_pilot_public_def.h"
+#include "param_meta_data.h"
 
 #include <string>
 
@@ -30,6 +31,8 @@ public:
 
     std::vector<bool> get_algorithm_input_params_bindable();
 
+    std::vector<ParamMetadata> get_algorithm_input_params_metadata() override;
+
     int get_algorithm_execute_status();
 
     std::string get_algorithm_error_message();
@@ -49,8 +52,9 @@ public:
 private:
 	std::string image_path = "";
     std::shared_ptr<ImageDataInfo2D> resultImg;
-    long run_time = 0;
+    long run_time = -1;
     std::string error_msg;
+	int execute_status = -1;
 };
 
 extern "C" __declspec(dllexport) NodeEngine* CreateInstance();

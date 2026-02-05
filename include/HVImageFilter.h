@@ -1,7 +1,8 @@
-#pragma once
+ï»¿#pragma once
 #include "node_engine.h"
 #include "3d_pliot_error.h"
 #include "3d_pilot_public_def.h"
+#include "param_meta_data.h"
 
 class HVImageFilter : public NodeEngine {
 public:
@@ -12,10 +13,10 @@ public:
 
     int run();
 
-    // 0: ImageDataInfo2D * ÊäÈëÍ¼Ïñ
-    // 1: int* ÂË²¨ÀàĞÍ£¨0: Gaussian, 1: Median, 2: Bilateral£©
-    // 2: int* ºË´óĞ¡
-    // 3: double* sigma Öµ£¨½ö Gaussian ºÍ Bilateral ÓĞĞ§£©
+    // 0: ImageDataInfo2D * è¾“å…¥å›¾åƒ
+    // 1: int* æ»¤æ³¢ç±»å‹ï¼ˆ0: Gaussian, 1: Median, 2: Bilateralï¼‰
+    // 2: int* æ ¸å¤§å°
+    // 3: double* sigma å€¼ï¼ˆä»… Gaussian å’Œ Bilateral æœ‰æ•ˆï¼‰
     int set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID = std::vector<int>());
 
     std::vector<void*> get_current_params();
@@ -31,6 +32,8 @@ public:
     std::vector<std::string> get_algorithm_output_params_name();
 
     std::vector<bool> get_algorithm_input_params_bindable();
+
+    std::vector<ParamMetadata> get_algorithm_input_params_metadata() override;
 
     int get_algorithm_execute_status();
 
@@ -56,7 +59,7 @@ private:
     int kernel_size = 3;
     double sigma = 1.0;
 
-    int execute_status = 0;
+    int execute_status = -1;
     long run_time = 0;
     std::string error_msg;
 };

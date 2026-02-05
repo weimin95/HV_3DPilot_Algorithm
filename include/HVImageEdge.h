@@ -1,7 +1,8 @@
-#pragma once
+ï»¿#pragma once
 #include "node_engine.h"
 #include "3d_pliot_error.h"
 #include "3d_pilot_public_def.h"
+#include "param_meta_data.h"
 
 #include <string>
 
@@ -14,9 +15,9 @@ public:
 
     int run();
 
-    // 0: ImageDataInfo2D* ÊäÈëÍ¼Ïñ
-	// 1: double* th1 Canny Ëã·¨ãĞÖµ 1
-	// 2: double* th2 Canny Ëã·¨ãĞÖµ 2
+    // 0: ImageDataInfo2D* è¾“å…¥å›¾åƒ
+	// 1: double* th1 Canny ç®—æ³•é˜ˆå€¼ 1
+	// 2: double* th2 Canny ç®—æ³•é˜ˆå€¼ 2
     int set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID = std::vector<int>());
 
     std::vector<void*> get_current_params();
@@ -32,6 +33,8 @@ public:
     std::vector<std::string> get_algorithm_output_params_name();
 
     std::vector<bool> get_algorithm_input_params_bindable();
+
+    std::vector<ParamMetadata> get_algorithm_input_params_metadata() override;
 
     int get_algorithm_execute_status();
 
@@ -55,7 +58,7 @@ private:
 
     double th1 = 50.0;
     double th2 = 150.0;
-    int execute_status = 0;
+    int execute_status = -1;
     long run_time = 0;
     std::string error_msg;
 };

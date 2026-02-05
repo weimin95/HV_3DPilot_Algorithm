@@ -1,7 +1,8 @@
-#pragma once
+ï»¿#pragma once
 #include "node_engine.h"
 #include "3d_pliot_error.h"
 #include "3d_pilot_public_def.h"
+#include "param_meta_data.h"
 
 #include <string>
 
@@ -14,7 +15,7 @@ public:
 
     int run();
 
-    // 0: string* µãÔÆÎÄ¼þÂ·¾¶
+    // 0: string* ç‚¹äº‘æ–‡ä»¶è·¯å¾„
     int set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID = std::vector<int>());
 
     std::vector<void*> get_algorithm_result();
@@ -30,6 +31,8 @@ public:
     std::vector<std::string> get_algorithm_output_params_name();
 
     std::vector<bool> get_algorithm_input_params_bindable();
+
+    std::vector<ParamMetadata> get_algorithm_input_params_metadata() override;
 
     int get_algorithm_execute_status();
 
@@ -51,7 +54,7 @@ private:
     std::string cloud_path;
     std::shared_ptr<HVPointCloud> cloudout;
 
-    int execute_status = 0;
+    int execute_status = -1;
     long run_time = 0;
     std::string error_msg;
 };
