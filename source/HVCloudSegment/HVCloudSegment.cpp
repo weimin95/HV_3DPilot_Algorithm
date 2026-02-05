@@ -3,6 +3,12 @@
 
 #include <chrono>
 
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/region_growing.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/search/kdtree.h>
 
 HVCloudSegment::HVCloudSegment()
 {
@@ -23,41 +29,147 @@ int HVCloudSegment::run()
 {
     auto start = std::chrono::steady_clock::now();
 
-    std::shared_ptr<open3d::geometry::PointCloud> cloudIn = PointCloudConverter::ToOpen3D(*inputCloud);
-    std::shared_ptr<open3d::geometry::PointCloud> cloudOut(new open3d::geometry::PointCloud);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloudIn = PointCloudConverter::ToPCL(*inputCloud);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOut(new pcl::PointCloud<pcl::PointXYZ>);
+
     switch (type)
     {
     case 0:
     {
-        // sor filter
-        auto res = cloudIn->RemoveStatisticalOutliers(k, nSigma);
-        cloudOut = std::get<0>(res);
-        error_msg = "Statistic filter success";
+        // RANSAC 平面分割
+        pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+        pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+
+        pcl::SACSegmentation<pcl::PointXYZ> seg;
+        seg.setOptimizeCoefficients(true);
+        seg.setModelType(pcl::SACMODEL_PLANE);
+        seg.setMethodType(pcl::SAC_RANSAC);
+        seg.setDistanceThreshold(distance_threshold);
+        seg.setMaxIterations(max_iterations);
+        seg.setInputCloud(cloudIn);
+        seg.segment(*inliers, *coefficients);
+
+        if (inliers->indices.empty()) {
+            error_msg = "RANSAC plane segmentation: no inliers found";
+            execute_status = -1;
+            return -1;
+        }
+
+        // 提取平面内点
+        pcl::ExtractIndices<pcl::PointXYZ> extract;
+        extract.setInputCloud(cloudIn);
+        extract.setIndices(inliers);
+        extract.setNegative(false);
+        extract.filter(*cloudOut);
+
+        error_msg = "RANSAC plane segmentation success, inliers: " + std::to_string(cloudOut->size());
     }
     break;
     case 1:
     {
-        // radius filter 
-        auto res = cloudIn->RemoveRadiusOutliers(pointsThrehold, radius);
-        cloudOut = std::get<0>(res);
-        error_msg = "Radius filter success";
+        // 欧式聚类分割
+        pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+        tree->setInputCloud(cloudIn);
+
+        std::vector<pcl::PointIndices> cluster_indices;
+        pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+        ec.setClusterTolerance(cluster_tolerance);
+        ec.setMinClusterSize(min_cluster_size);
+        ec.setMaxClusterSize(max_cluster_size);
+        ec.setSearchMethod(tree);
+        ec.setInputCloud(cloudIn);
+        ec.extract(cluster_indices);
+
+        if (cluster_indices.empty()) {
+            error_msg = "Euclidean cluster extraction: no clusters found";
+            execute_status = -1;
+            return -1;
+        }
+
+        // 取最大聚类
+        size_t largest_idx = 0;
+        size_t largest_size = 0;
+        for (size_t i = 0; i < cluster_indices.size(); ++i) {
+            if (cluster_indices[i].indices.size() > largest_size) {
+                largest_size = cluster_indices[i].indices.size();
+                largest_idx = i;
+            }
+        }
+
+        pcl::ExtractIndices<pcl::PointXYZ> extract;
+        pcl::PointIndices::Ptr largest_cluster(new pcl::PointIndices(cluster_indices[largest_idx]));
+        extract.setInputCloud(cloudIn);
+        extract.setIndices(largest_cluster);
+        extract.setNegative(false);
+        extract.filter(*cloudOut);
+
+        error_msg = "Euclidean cluster extraction success, clusters: " + std::to_string(cluster_indices.size())
+            + ", largest cluster size: " + std::to_string(cloudOut->size());
     }
     break;
     case 2:
     {
-        // voxel filter
-        cloudOut = cloudIn->VoxelDownSample(voxelSize);
-        error_msg = "Voxel downsample success";
+        // 区域生长分割
+        // 1. 法线估计
+        pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+        pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+
+        pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> normal_estimator;
+        normal_estimator.setSearchMethod(tree);
+        normal_estimator.setInputCloud(cloudIn);
+        normal_estimator.setKSearch(number_of_neighbours);
+        normal_estimator.compute(*normals);
+
+        // 2. 区域生长
+        pcl::RegionGrowing<pcl::PointXYZ, pcl::Normal> reg;
+        reg.setMinClusterSize(min_cluster_size);
+        reg.setMaxClusterSize(max_cluster_size);
+        reg.setSearchMethod(tree);
+        reg.setNumberOfNeighbours(number_of_neighbours);
+        reg.setInputCloud(cloudIn);
+        reg.setInputNormals(normals);
+        reg.setSmoothnessThreshold(smoothness_threshold / 180.0f * static_cast<float>(M_PI));
+        reg.setCurvatureThreshold(curvature_threshold);
+
+        std::vector<pcl::PointIndices> clusters;
+        reg.extract(clusters);
+
+        if (clusters.empty()) {
+            error_msg = "Region growing segmentation: no clusters found";
+            execute_status = -1;
+            return -1;
+        }
+
+        // 取最大聚类
+        size_t largest_idx = 0;
+        size_t largest_size = 0;
+        for (size_t i = 0; i < clusters.size(); ++i) {
+            if (clusters[i].indices.size() > largest_size) {
+                largest_size = clusters[i].indices.size();
+                largest_idx = i;
+            }
+        }
+
+        pcl::ExtractIndices<pcl::PointXYZ> extract;
+        pcl::PointIndices::Ptr largest_cluster(new pcl::PointIndices(clusters[largest_idx]));
+        extract.setInputCloud(cloudIn);
+        extract.setIndices(largest_cluster);
+        extract.setNegative(false);
+        extract.filter(*cloudOut);
+
+        error_msg = "Region growing segmentation success, clusters: " + std::to_string(clusters.size())
+            + ", largest cluster size: " + std::to_string(cloudOut->size());
     }
     break;
     default:
     {
-        error_msg = "Unsupport filter";
-        break;
-    } 
+        error_msg = "Unsupported segmentation type";
+        execute_status = -1;
+        return -1;
+    }
     }
 
-    resultCloud = std::make_shared<HVPointCloud>(PointCloudConverter::FromOpen3D(*cloudOut));
+    resultCloud = std::make_shared<HVPointCloud>(PointCloudConverter::FromPCL(*cloudOut));
 
     auto end = std::chrono::steady_clock::now();
     run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -72,11 +184,14 @@ int HVCloudSegment::set_algorithm_params(const std::vector<void*>& params, const
     {
         inputCloud = cast_param_sharedPtr<HVPointCloud>(params, 0);
         type = cast_param<int>(params, 1);
-        k = cast_param<int>(params, 2);
-        nSigma = cast_param<float>(params, 3);
-        radius = cast_param<float>(params, 4);
-        pointsThrehold = cast_param<int>(params, 5);
-        voxelSize = cast_param<float>(params, 6);
+        distance_threshold = cast_param<double>(params, 2);
+        max_iterations = cast_param<int>(params, 3);
+        cluster_tolerance = cast_param<double>(params, 4);
+        min_cluster_size = cast_param<int>(params, 5);
+        max_cluster_size = cast_param<int>(params, 6);
+        number_of_neighbours = cast_param<int>(params, 7);
+        smoothness_threshold = cast_param<float>(params, 8);
+        curvature_threshold = cast_param<float>(params, 9);
     }
     else
     {
@@ -92,19 +207,28 @@ int HVCloudSegment::set_algorithm_params(const std::vector<void*>& params, const
                 type = cast_param<int>(params, i);
                 break;
             case 2:
-                k = cast_param<int>(params, i);
+                distance_threshold = cast_param<double>(params, i);
                 break;
             case 3:
-                nSigma = cast_param<float>(params, i);
+                max_iterations = cast_param<int>(params, i);
                 break;
             case 4:
-                radius = cast_param<float>(params, i);
+                cluster_tolerance = cast_param<double>(params, i);
                 break;
             case 5:
-                pointsThrehold = cast_param<int>(params, i);
+                min_cluster_size = cast_param<int>(params, i);
                 break;
             case 6:
-                voxelSize = cast_param<float>(params, i);
+                max_cluster_size = cast_param<int>(params, i);
+                break;
+            case 7:
+                number_of_neighbours = cast_param<int>(params, i);
+                break;
+            case 8:
+                smoothness_threshold = cast_param<float>(params, i);
+                break;
+            case 9:
+                curvature_threshold = cast_param<float>(params, i);
                 break;
             default:
                 break;
@@ -117,7 +241,18 @@ int HVCloudSegment::set_algorithm_params(const std::vector<void*>& params, const
 
 std::vector<void*> HVCloudSegment::get_current_params()
 {
-	return { &inputCloud, &type, &k, &nSigma, &radius, &pointsThrehold, &voxelSize };
+    return {
+        &inputCloud,
+        &type,
+        &distance_threshold,
+        &max_iterations,
+        &cluster_tolerance,
+        &min_cluster_size,
+        &max_cluster_size,
+        &number_of_neighbours,
+        &smoothness_threshold,
+        &curvature_threshold
+    };
 }
 
 std::vector<void*> HVCloudSegment::get_algorithm_result()
@@ -129,7 +264,7 @@ std::vector<void*> HVCloudSegment::get_algorithm_result()
 
 std::vector<int> HVCloudSegment::get_algorithm_input_params_type()
 {
-    return { HV_POINTCLOUD, HV_INT, HV_INT, HV_FLOAT, HV_FLOAT, HV_INT, HV_FLOAT };
+    return { HV_POINTCLOUD, HV_INT, HV_DOUBLE, HV_INT, HV_DOUBLE, HV_INT, HV_INT, HV_INT, HV_FLOAT, HV_FLOAT };
 }
 
 std::vector<int> HVCloudSegment::get_algorithm_output_params_type()
@@ -139,7 +274,18 @@ std::vector<int> HVCloudSegment::get_algorithm_output_params_type()
 
 std::vector<std::string> HVCloudSegment::get_algorithm_input_params_name()
 {
-    return { "input cloud", "preprocess type", "k", "nSigma", "radius", "points threshold", "voxel size" };
+    return {
+        "input cloud",
+        "segment type",
+        "distance threshold",
+        "max iterations",
+        "cluster tolerance",
+        "min cluster size",
+        "max cluster size",
+        "number of neighbours",
+        "smoothness threshold",
+        "curvature threshold"
+    };
 }
 
 std::vector<std::string> HVCloudSegment::get_algorithm_output_params_name()
@@ -149,7 +295,7 @@ std::vector<std::string> HVCloudSegment::get_algorithm_output_params_name()
 
 std::vector<bool> HVCloudSegment::get_algorithm_input_params_bindable()
 {
-    return { true, false, false, false, false, false, false };
+    return { true, false, false, false, false, false, false, false, false, false };
 }
 
 std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
@@ -164,67 +310,97 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
     meta0.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta0);
 
-    // 参数1: 预处理类型 (选项约束)
+    // 参数1: 分割类型 (选项约束)
     ParamMetadata meta1;
-    meta1.param_name = "preprocess type";
-    meta1.param_description = "预处理算法类型";
+    meta1.param_name = "segment type";
+    meta1.param_description = "点云分割算法类型";
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption("0", "SOR (统计滤波)");
-    meta1.options_constraint.AddOption("1", "Radius (半径滤波)");
-    meta1.options_constraint.AddOption("2", "Voxel (体素下采样)");
+    meta1.options_constraint.AddOption("0", "RANSAC (平面分割)");
+    meta1.options_constraint.AddOption("1", "Euclidean (欧式聚类)");
+    meta1.options_constraint.AddOption("2", "RegionGrowing (区域生长)");
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 
-    // 参数2: k值 (范围约束，SOR滤波参数，依赖type=0)
+    // 参数2: 距离阈值 (RANSAC, 依赖type=0)
     ParamMetadata meta2;
-    meta2.param_name = "k";
-    meta2.param_description = "SOR滤波邻域点个数";
-    meta2.param_type = HV_INT;
+    meta2.param_name = "distance threshold";
+    meta2.param_description = "RANSAC点到平面距离阈值";
+    meta2.param_type = HV_DOUBLE;
     meta2.constraint_type = CONSTRAINT_RANGE;
-    meta2.range_constraint = RangeConstraint(1, 100, 30);
+    meta2.range_constraint = RangeConstraint(0.001, 100.0, 0.01);
     meta2.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"0"}));
     metadata_list.push_back(meta2);
 
-    // 参数3: nSigma (范围约束，SOR滤波参数，依赖type=0)
+    // 参数3: 最大迭代次数 (RANSAC, 依赖type=0)
     ParamMetadata meta3;
-    meta3.param_name = "nSigma";
-    meta3.param_description = "SOR滤波标准差倍数";
-    meta3.param_type = HV_FLOAT;
+    meta3.param_name = "max iterations";
+    meta3.param_description = "RANSAC最大迭代次数";
+    meta3.param_type = HV_INT;
     meta3.constraint_type = CONSTRAINT_RANGE;
-    meta3.range_constraint = RangeConstraint(0.1, 10.0, 1.5);
+    meta3.range_constraint = RangeConstraint(1, 10000, 1000);
     meta3.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"0"}));
     metadata_list.push_back(meta3);
 
-    // 参数4: radius (范围约束，半径滤波参数，依赖type=1)
+    // 参数4: 聚类距离容差 (欧式聚类, 依赖type=1)
     ParamMetadata meta4;
-    meta4.param_name = "radius";
-    meta4.param_description = "半径滤波搜索半径";
-    meta4.param_type = HV_FLOAT;
+    meta4.param_name = "cluster tolerance";
+    meta4.param_description = "欧式聚类点间距离容差";
+    meta4.param_type = HV_DOUBLE;
     meta4.constraint_type = CONSTRAINT_RANGE;
-    meta4.range_constraint = RangeConstraint(0.01, 100.0, 1.0);
+    meta4.range_constraint = RangeConstraint(0.001, 100.0, 0.02);
     meta4.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta4);
 
-    // 参数5: pointsThreshold (范围约束，半径滤波参数，依赖type=1)
+    // 参数5: 最小聚类点数 (欧式聚类/区域生长, 依赖type IN [1,2])
     ParamMetadata meta5;
-    meta5.param_name = "points threshold";
-    meta5.param_description = "半径滤波邻域点阈值";
+    meta5.param_name = "min cluster size";
+    meta5.param_description = "最小聚类点数";
     meta5.param_type = HV_INT;
     meta5.constraint_type = CONSTRAINT_RANGE;
-    meta5.range_constraint = RangeConstraint(1, 1000, 100);
-    meta5.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
+    meta5.range_constraint = RangeConstraint(1, 1000000, 100);
+    meta5.dependencies.push_back(ParamDependency(1, DEPENDS_ON_IN_LIST, {"1", "2"}));
     metadata_list.push_back(meta5);
 
-    // 参数6: voxelSize (范围约束，体素下采样参数，依赖type=2)
+    // 参数6: 最大聚类点数 (欧式聚类/区域生长, 依赖type IN [1,2])
     ParamMetadata meta6;
-    meta6.param_name = "voxel size";
-    meta6.param_description = "体素大小";
-    meta6.param_type = HV_FLOAT;
+    meta6.param_name = "max cluster size";
+    meta6.param_description = "最大聚类点数";
+    meta6.param_type = HV_INT;
     meta6.constraint_type = CONSTRAINT_RANGE;
-    meta6.range_constraint = RangeConstraint(0.001, 100.0, 1.0);
-    meta6.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"2"}));
+    meta6.range_constraint = RangeConstraint(1, 10000000, 100000);
+    meta6.dependencies.push_back(ParamDependency(1, DEPENDS_ON_IN_LIST, {"1", "2"}));
     metadata_list.push_back(meta6);
+
+    // 参数7: 邻域点数 (区域生长, 依赖type=2)
+    ParamMetadata meta7;
+    meta7.param_name = "number of neighbours";
+    meta7.param_description = "区域生长KNN邻域点数";
+    meta7.param_type = HV_INT;
+    meta7.constraint_type = CONSTRAINT_RANGE;
+    meta7.range_constraint = RangeConstraint(1, 200, 30);
+    meta7.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"2"}));
+    metadata_list.push_back(meta7);
+
+    // 参数8: 平滑度阈值 (区域生长, 依赖type=2)
+    ParamMetadata meta8;
+    meta8.param_name = "smoothness threshold";
+    meta8.param_description = "区域生长平滑度角度阈值（度）";
+    meta8.param_type = HV_FLOAT;
+    meta8.constraint_type = CONSTRAINT_RANGE;
+    meta8.range_constraint = RangeConstraint(0.1, 180.0, 3.0);
+    meta8.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"2"}));
+    metadata_list.push_back(meta8);
+
+    // 参数9: 曲率阈值 (区域生长, 依赖type=2)
+    ParamMetadata meta9;
+    meta9.param_name = "curvature threshold";
+    meta9.param_description = "区域生长曲率阈值";
+    meta9.param_type = HV_FLOAT;
+    meta9.constraint_type = CONSTRAINT_RANGE;
+    meta9.range_constraint = RangeConstraint(0.001, 100.0, 1.0);
+    meta9.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"2"}));
+    metadata_list.push_back(meta9);
 
     return metadata_list;
 }
@@ -260,11 +436,14 @@ bool HVCloudSegment::save_params_to_json(const std::string& filePath)
         nlohmann::json params_json = nlohmann::json::array();
 
         add_param(params_json, "type", HV_INT, this->type);
-        add_param(params_json, "k", HV_INT, this->k);
-        add_param(params_json, "nSigma", HV_FLOAT, this->nSigma);
-        add_param(params_json, "radius", HV_FLOAT, this->radius);
-        add_param(params_json, "pointsThrehold", HV_INT, this->pointsThrehold);
-        add_param(params_json, "voxelSize", HV_FLOAT, this->voxelSize);
+        add_param(params_json, "distance_threshold", HV_DOUBLE, this->distance_threshold);
+        add_param(params_json, "max_iterations", HV_INT, this->max_iterations);
+        add_param(params_json, "cluster_tolerance", HV_DOUBLE, this->cluster_tolerance);
+        add_param(params_json, "min_cluster_size", HV_INT, this->min_cluster_size);
+        add_param(params_json, "max_cluster_size", HV_INT, this->max_cluster_size);
+        add_param(params_json, "number_of_neighbours", HV_INT, this->number_of_neighbours);
+        add_param(params_json, "smoothness_threshold", HV_FLOAT, this->smoothness_threshold);
+        add_param(params_json, "curvature_threshold", HV_FLOAT, this->curvature_threshold);
 
         // 写入文件
         std::ofstream file(filePath);
@@ -301,43 +480,38 @@ bool HVCloudSegment::load_params_from_json(const std::string& filePath)
 
         // 遍历参数数组
         for (const auto& param_json : params_json) {
-            // 检查必要字段是否存在
             if (!param_json.contains("name") || !param_json.contains("type")) {
                 continue;
             }
 
             std::string param_name = param_json["name"];
-            int param_type = param_json["type"];
 
-            // 根据参数名称进行处理
             if (param_name == "type") {
-                // 设置到类成员变量
                 this->type = param_json["value"];
             }
-
-            if (param_name == "k") {
-                // 设置到类成员变量
-                this->k = param_json["value"];
+            else if (param_name == "distance_threshold") {
+                this->distance_threshold = param_json["value"];
             }
-
-            if (param_name == "nSigma") {
-                // 设置到类成员变量
-                this->nSigma = param_json["value"];
+            else if (param_name == "max_iterations") {
+                this->max_iterations = param_json["value"];
             }
-
-            if (param_name == "radius") {
-                // 设置到类成员变量
-                this->radius = param_json["value"];
+            else if (param_name == "cluster_tolerance") {
+                this->cluster_tolerance = param_json["value"];
             }
-
-            if (param_name == "pointsThrehold") {
-                // 设置到类成员变量
-                this->pointsThrehold = param_json["value"];
+            else if (param_name == "min_cluster_size") {
+                this->min_cluster_size = param_json["value"];
             }
-
-            if (param_name == "voxelSize") {
-                // 设置到类成员变量
-                this->voxelSize = param_json["value"];
+            else if (param_name == "max_cluster_size") {
+                this->max_cluster_size = param_json["value"];
+            }
+            else if (param_name == "number_of_neighbours") {
+                this->number_of_neighbours = param_json["value"];
+            }
+            else if (param_name == "smoothness_threshold") {
+                this->smoothness_threshold = param_json["value"];
+            }
+            else if (param_name == "curvature_threshold") {
+                this->curvature_threshold = param_json["value"];
             }
         }
 
