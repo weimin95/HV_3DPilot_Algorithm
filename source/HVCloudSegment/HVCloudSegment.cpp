@@ -316,9 +316,9 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
     meta1.param_description = "点云分割算法类型";
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption("0", "RANSAC (平面分割)");
-    meta1.options_constraint.AddOption("1", "Euclidean (欧式聚类)");
-    meta1.options_constraint.AddOption("2", "RegionGrowing (区域生长)");
+    meta1.options_constraint.AddOption(0, "RANSAC (平面分割)");
+    meta1.options_constraint.AddOption(1, "Euclidean (欧式聚类)");
+    meta1.options_constraint.AddOption(2, "RegionGrowing (区域生长)");
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 

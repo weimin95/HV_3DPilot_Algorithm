@@ -369,10 +369,10 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta2.param_description = "Point cloud registration algorithm type";
     meta2.param_type = HV_INT;
     meta2.constraint_type = CONSTRAINT_OPTIONS;
-    meta2.options_constraint.AddOption("0", "ICP (Iterative Closest Point)");
-    meta2.options_constraint.AddOption("1", "NDT (Normal Distributions Transform)");
-    meta2.options_constraint.AddOption("2", "GICP (Generalized ICP)");
-    meta2.options_constraint.AddOption("3", "FPFH+SAC-IA (Feature-based Initial Alignment)");
+    meta2.options_constraint.AddOption(0, "ICP (Iterative Closest Point)");
+    meta2.options_constraint.AddOption(1, "NDT (Normal Distributions Transform)");
+    meta2.options_constraint.AddOption(2, "GICP (Generalized ICP)");
+    meta2.options_constraint.AddOption(3, "FPFH+SAC-IA (Feature-based Initial Alignment)");
     meta2.options_constraint.default_index = 0;
     metadata_list.push_back(meta2);
 

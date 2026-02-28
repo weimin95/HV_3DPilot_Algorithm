@@ -145,9 +145,9 @@ std::vector<ParamMetadata> HVImageFilter::get_algorithm_input_params_metadata()
     meta1.param_description = "滤波算法类型";
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption("0", "Gaussian (高斯滤波)");
-    meta1.options_constraint.AddOption("1", "Median (中值滤波)");
-    meta1.options_constraint.AddOption("2", "Bilateral (双边滤波)");
+    meta1.options_constraint.AddOption(0, "Gaussian (高斯滤波)");
+    meta1.options_constraint.AddOption(1, "Median (中值滤波)");
+    meta1.options_constraint.AddOption(2, "Bilateral (双边滤波)");
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 

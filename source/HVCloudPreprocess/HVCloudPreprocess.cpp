@@ -175,9 +175,9 @@ std::vector<ParamMetadata> HVCloudPreprocess::get_algorithm_input_params_metadat
     meta1.param_description = "预处理算法类型";
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption("0", "SOR (统计滤波)");
-    meta1.options_constraint.AddOption("1", "Radius (半径滤波)");
-    meta1.options_constraint.AddOption("2", "Voxel (体素下采样)");
+    meta1.options_constraint.AddOption(0, "SOR (统计滤波)");
+    meta1.options_constraint.AddOption(1, "Radius (半径滤波)");
+    meta1.options_constraint.AddOption(2, "Voxel (体素下采样)");
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 

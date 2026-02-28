@@ -273,8 +273,8 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta1.param_description = "Geometric model type to fit";
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption("0", "Plane");
-    meta1.options_constraint.AddOption("1", "Cylinder");
+    meta1.options_constraint.AddOption(0, "Plane");
+    meta1.options_constraint.AddOption(1, "Cylinder");
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 
