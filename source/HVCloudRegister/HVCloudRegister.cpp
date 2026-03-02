@@ -516,6 +516,10 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta16.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"3"}));
     metadata_list.push_back(meta16);
 
+    for (size_t i = 0; i < metadata_list.size(); ++i) {
+        metadata_list[i].param_group = (i < 3) ? PARAM_GROUP_BASIC : PARAM_GROUP_ADVANCED;
+    }
+
     return metadata_list;
 }
 

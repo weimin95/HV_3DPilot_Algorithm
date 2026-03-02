@@ -144,6 +144,10 @@ std::vector<ParamMetadata> HVImageEdge::get_algorithm_input_params_metadata()
     meta2.range_constraint = RangeConstraint(0.0, 500.0, 150.0);
     metadata_list.push_back(meta2);
 
+    for (size_t i = 0; i < metadata_list.size(); ++i) {
+        metadata_list[i].param_group = (i < 1) ? PARAM_GROUP_BASIC : PARAM_GROUP_ADVANCED;
+    }
+
     return metadata_list;
 }
 

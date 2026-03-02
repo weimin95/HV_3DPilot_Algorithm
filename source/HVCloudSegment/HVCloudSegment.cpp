@@ -402,6 +402,10 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
     meta9.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"2"}));
     metadata_list.push_back(meta9);
 
+    for (size_t i = 0; i < metadata_list.size(); ++i) {
+        metadata_list[i].param_group = (i < 2) ? PARAM_GROUP_BASIC : PARAM_GROUP_ADVANCED;
+    }
+
     return metadata_list;
 }
 
