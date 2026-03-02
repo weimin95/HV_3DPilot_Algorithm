@@ -76,7 +76,7 @@ private:
     double radius_min = 0.0;            // 圆柱半径下限
     double radius_max = 1.0;            // 圆柱半径上限
 
-    int execute_status = -1;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
 };

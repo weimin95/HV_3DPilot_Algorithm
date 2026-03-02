@@ -67,7 +67,7 @@ private:
     int pointsThrehold = 100;// 半径滤波点数阈值
     float voxelSize = 1.0;// 体素大小
 
-    int execute_status = -1;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
 };

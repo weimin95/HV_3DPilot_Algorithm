@@ -13,12 +13,23 @@ HVImageFilter::HVImageFilter()
 
 int HVImageFilter::init()
 {
+	execute_status = NODE_STATUS_NOT_RUN;
+	error_msg.clear();
 	return SUCCESS;
 }
 
 int HVImageFilter::run()
 {
     auto start = std::chrono::steady_clock::now();
+    execute_status = NODE_STATUS_RUNNING;
+    error_msg.clear();
+
+    if (!inputImg)
+    {
+        execute_status = ALGORITHM_RUN_ERROR;
+        error_msg = "Input image is null";
+        return ALGORITHM_RUN_ERROR;
+    }
 
     // 1. 输入映射
     cv::Mat input = ImageConverter::ToMat(*inputImg);
@@ -43,7 +54,9 @@ int HVImageFilter::run()
         break;
 
     default:
-        return -2;
+        execute_status = ALGORITHM_RUN_ERROR;
+        error_msg = "Unsupported filter type";
+        return ALGORITHM_RUN_ERROR;
     }
 
     resultImg = std::make_shared<ImageDataInfo2D>(ImageConverter::FromMat(output));
@@ -51,7 +64,7 @@ int HVImageFilter::run()
     auto end = std::chrono::steady_clock::now();
     run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    execute_status = 0;
+    execute_status = SUCCESS;
     return SUCCESS;
 }
 
@@ -179,7 +192,7 @@ std::vector<ParamMetadata> HVImageFilter::get_algorithm_input_params_metadata()
 
 int HVImageFilter::get_algorithm_execute_status()
 {
-	return SUCCESS;
+	return execute_status;
 }
 
 std::string HVImageFilter::get_algorithm_error_message()

@@ -16,12 +16,23 @@ HVImageEdge::~HVImageEdge()
 
 int HVImageEdge::init()
 {
+	execute_status = NODE_STATUS_NOT_RUN;
+	error_msg.clear();
 	return SUCCESS;
 }
 
 int HVImageEdge::run()
 {
     auto start = std::chrono::steady_clock::now();
+    execute_status = NODE_STATUS_RUNNING;
+    error_msg.clear();
+
+    if (!inputImg)
+    {
+        execute_status = ALGORITHM_RUN_ERROR;
+        error_msg = "Input image is null";
+        return ALGORITHM_RUN_ERROR;
+    }
 
     // 1. wrap 输入
     cv::Mat src = ImageConverter::ToMat(*inputImg);
@@ -44,9 +55,9 @@ int HVImageEdge::run()
     auto end = std::chrono::steady_clock::now();
     run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    execute_status = 0;
+    execute_status = SUCCESS;
     error_msg = "Extract edge success";
-    return 0;
+    return SUCCESS;
 }
 
 int HVImageEdge::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)
@@ -153,7 +164,7 @@ std::vector<ParamMetadata> HVImageEdge::get_algorithm_input_params_metadata()
 
 int HVImageEdge::get_algorithm_execute_status()
 {
-	return SUCCESS;
+	return execute_status;
 }
 
 std::string HVImageEdge::get_algorithm_error_message()

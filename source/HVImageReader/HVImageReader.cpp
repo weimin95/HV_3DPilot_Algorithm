@@ -17,6 +17,8 @@ HVImageReader::~HVImageReader()
 
 int HVImageReader::init()
 {
+	execute_status = NODE_STATUS_NOT_RUN;
+	error_msg.clear();
 	return SUCCESS;
 }
 
@@ -24,7 +26,8 @@ int HVImageReader::run()
 {
 	auto start = std::chrono::high_resolution_clock::now();
 
-    execute_status = -1;
+    execute_status = NODE_STATUS_RUNNING;
+    error_msg.clear();
 	cv::Mat img = cv::imread(image_path, cv::IMREAD_UNCHANGED);
 	if (img.empty()) 
 	{
@@ -105,7 +108,7 @@ std::vector<ParamMetadata> HVImageReader::get_algorithm_input_params_metadata()
 
 int HVImageReader::get_algorithm_execute_status()
 {
-	return SUCCESS;
+	return execute_status;
 }
 
 std::string HVImageReader::get_algorithm_error_message()

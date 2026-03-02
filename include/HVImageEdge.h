@@ -58,7 +58,7 @@ private:
 
     double th1 = 50.0;
     double th2 = 150.0;
-    int execute_status = -1;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
 };

@@ -54,7 +54,7 @@ private:
     std::string cloud_path;
     std::shared_ptr<HVPointCloud> cloudout;
 
-    int execute_status = -1;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
 };

@@ -54,7 +54,7 @@ private:
     std::shared_ptr<ImageDataInfo2D> resultImg;
     long run_time = -1;
     std::string error_msg;
-	int execute_status = -1;
+	int execute_status = NODE_STATUS_NOT_RUN;
 };
 
 extern "C" __declspec(dllexport) NodeEngine* CreateInstance();

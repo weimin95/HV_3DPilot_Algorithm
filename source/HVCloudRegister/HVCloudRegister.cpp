@@ -42,17 +42,21 @@ HVCloudRegister::~HVCloudRegister()
 
 int HVCloudRegister::init()
 {
+    execute_status = NODE_STATUS_NOT_RUN;
+    error_msg.clear();
     return SUCCESS;
 }
 
 int HVCloudRegister::run()
 {
     auto start = std::chrono::steady_clock::now();
+    execute_status = NODE_STATUS_RUNNING;
+    error_msg.clear();
 
     if (!sourceCloud || !targetCloud) {
         error_msg = "Source or target cloud is null";
-        execute_status = -1;
-        return -1;
+        execute_status = ALGORITHM_RUN_ERROR;
+        return ALGORITHM_RUN_ERROR;
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloudSrc = PointCloudConverter::ToPCL(*sourceCloud);
@@ -76,8 +80,8 @@ int HVCloudRegister::run()
 
         if (!icp.hasConverged()) {
             error_msg = "ICP did not converge";
-            execute_status = -1;
-            return -1;
+            execute_status = ALGORITHM_RUN_ERROR;
+            return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = icp.getFinalTransformation();
@@ -98,8 +102,8 @@ int HVCloudRegister::run()
 
         if (!ndt.hasConverged()) {
             error_msg = "NDT did not converge";
-            execute_status = -1;
-            return -1;
+            execute_status = ALGORITHM_RUN_ERROR;
+            return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = ndt.getFinalTransformation();
@@ -120,8 +124,8 @@ int HVCloudRegister::run()
 
         if (!gicp.hasConverged()) {
             error_msg = "GICP did not converge";
-            execute_status = -1;
-            return -1;
+            execute_status = ALGORITHM_RUN_ERROR;
+            return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = gicp.getFinalTransformation();
@@ -178,8 +182,8 @@ int HVCloudRegister::run()
 
         if (!sac_ia.hasConverged()) {
             error_msg = "FPFH+SAC-IA did not converge";
-            execute_status = -1;
-            return -1;
+            execute_status = ALGORITHM_RUN_ERROR;
+            return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = sac_ia.getFinalTransformation();
@@ -189,8 +193,8 @@ int HVCloudRegister::run()
     default:
     {
         error_msg = "Unsupported registration type";
-        execute_status = -1;
-        return -1;
+        execute_status = ALGORITHM_RUN_ERROR;
+        return ALGORITHM_RUN_ERROR;
     }
     }
 
@@ -200,8 +204,8 @@ int HVCloudRegister::run()
     auto end = std::chrono::steady_clock::now();
     run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    execute_status = 0;
-    return 0;
+    execute_status = SUCCESS;
+    return SUCCESS;
 }
 
 int HVCloudRegister::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)

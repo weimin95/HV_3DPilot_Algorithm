@@ -13,12 +13,23 @@ HVCloudPreprocess::~HVCloudPreprocess()
 
 int HVCloudPreprocess::init()
 {
+	execute_status = NODE_STATUS_NOT_RUN;
+	error_msg.clear();
 	return SUCCESS;
 }
 
 int HVCloudPreprocess::run()
 {
     auto start = std::chrono::steady_clock::now();
+    execute_status = NODE_STATUS_RUNNING;
+    error_msg.clear();
+
+    if (!inputCloud)
+    {
+        execute_status = ALGORITHM_RUN_ERROR;
+        error_msg = "Input cloud is null";
+        return ALGORITHM_RUN_ERROR;
+    }
 
     std::shared_ptr<open3d::geometry::PointCloud> cloudIn = PointCloudConverter::ToOpen3D(*inputCloud);
     std::shared_ptr<open3d::geometry::PointCloud> cloudOut(new open3d::geometry::PointCloud);
@@ -50,7 +61,8 @@ int HVCloudPreprocess::run()
     default:
     {
         error_msg = "Unsupport filter";
-        break;
+        execute_status = ALGORITHM_RUN_ERROR;
+        return ALGORITHM_RUN_ERROR;
     } 
     }
 
@@ -59,8 +71,8 @@ int HVCloudPreprocess::run()
     auto end = std::chrono::steady_clock::now();
     run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    execute_status = 0;
-    return 0;
+    execute_status = SUCCESS;
+    return SUCCESS;
 }
 
 int HVCloudPreprocess::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)

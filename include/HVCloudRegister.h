@@ -100,7 +100,7 @@ private:
     double sacia_min_sample_distance = 0.05;   // 最小采样距离
     double sacia_max_correspondence_distance = 0.5; // 最大对应点距离
 
-    int execute_status = -1;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
 };

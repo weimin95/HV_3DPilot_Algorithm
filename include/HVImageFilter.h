@@ -59,7 +59,7 @@ private:
     int kernel_size = 3;
     double sigma = 1.0;
 
-    int execute_status = -1;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
 };

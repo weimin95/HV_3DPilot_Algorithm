@@ -20,17 +20,21 @@ HVCloudFit::~HVCloudFit()
 
 int HVCloudFit::init()
 {
+    execute_status = NODE_STATUS_NOT_RUN;
+    error_msg.clear();
     return SUCCESS;
 }
 
 int HVCloudFit::run()
 {
     auto start = std::chrono::steady_clock::now();
+    execute_status = NODE_STATUS_RUNNING;
+    error_msg.clear();
 
     if (!inputCloud) {
         error_msg = "Input cloud is null";
-        execute_status = -1;
-        return -1;
+        execute_status = ALGORITHM_RUN_ERROR;
+        return ALGORITHM_RUN_ERROR;
     }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloudIn = PointCloudConverter::ToPCL(*inputCloud);
@@ -54,8 +58,8 @@ int HVCloudFit::run()
 
         if (inliers->indices.empty()) {
             error_msg = "Plane fitting: no inliers found";
-            execute_status = -1;
-            return -1;
+            execute_status = ALGORITHM_RUN_ERROR;
+            return ALGORITHM_RUN_ERROR;
         }
 
         // 提取内点
@@ -109,8 +113,8 @@ int HVCloudFit::run()
 
         if (inliers->indices.empty()) {
             error_msg = "Cylinder fitting: no inliers found";
-            execute_status = -1;
-            return -1;
+            execute_status = ALGORITHM_RUN_ERROR;
+            return ALGORITHM_RUN_ERROR;
         }
 
         // 提取内点
@@ -150,8 +154,8 @@ int HVCloudFit::run()
     default:
     {
         error_msg = "Unsupported fit type";
-        execute_status = -1;
-        return -1;
+        execute_status = ALGORITHM_RUN_ERROR;
+        return ALGORITHM_RUN_ERROR;
     }
     }
 
@@ -160,8 +164,8 @@ int HVCloudFit::run()
     auto end = std::chrono::steady_clock::now();
     run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-    execute_status = 0;
-    return 0;
+    execute_status = SUCCESS;
+    return SUCCESS;
 }
 
 int HVCloudFit::set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID)

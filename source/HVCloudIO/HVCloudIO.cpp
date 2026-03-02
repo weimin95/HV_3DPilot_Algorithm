@@ -13,12 +13,16 @@ HVCloudIO::~HVCloudIO()
 
 int HVCloudIO::init()
 {
+	execute_status = NODE_STATUS_NOT_RUN;
+	error_msg.clear();
 	return SUCCESS;
 }
 
 int HVCloudIO::run()
 {
     auto start = std::chrono::steady_clock::now();
+    execute_status = NODE_STATUS_RUNNING;
+    error_msg.clear();
 
     std::shared_ptr<open3d::geometry::PointCloud> cloud(new open3d::geometry::PointCloud);
     if (open3d::io::ReadPointCloud(cloud_path, *cloud))

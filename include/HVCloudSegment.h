@@ -73,7 +73,7 @@ private:
     float smoothness_threshold = 3.0; // 区域生长: 平滑度角度阈值 (度)
     float curvature_threshold = 1.0;  // 区域生长: 曲率阈值
 
-    int execute_status = -1;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
 };
