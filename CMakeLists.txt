@@ -139,3 +139,15 @@ foreach(CATEGORY_NAME ${CATEGORY_DIRS})
         endforeach()
     endif()
 endforeach()
+
+# Copy icon resources to runtime plugin root: <plugin_root>/icons
+set(ICON_SOURCE_ROOT "${CMAKE_SOURCE_DIR}/resources/icons")
+if(EXISTS "${ICON_SOURCE_ROOT}")
+    add_custom_target(copy_plugin_icons ALL
+        COMMAND ${CMAKE_COMMAND}
+            -DICON_SRC_ROOT="${ICON_SOURCE_ROOT}"
+            -DICON_DST_ROOT="${CMAKE_BINARY_DIR}/HV_3DPilot_Algorithm$<CONFIG>/plugins/icons"
+            -P "${CMAKE_SOURCE_DIR}/cmake/CopyIcons.cmake"
+        COMMENT "Copy plugin icon resources to runtime plugins/icons"
+    )
+endif()
