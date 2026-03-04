@@ -122,7 +122,7 @@ std::vector<std::string> HVImageEdge::get_algorithm_output_params_name()
 
 std::vector<bool> HVImageEdge::get_algorithm_input_params_bindable()
 {
-    return { true, false, false };
+    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
 }
 
 std::vector<ParamMetadata> HVImageEdge::get_algorithm_input_params_metadata()

@@ -256,7 +256,7 @@ std::vector<std::string> HVCloudFit::get_algorithm_output_params_name()
 
 std::vector<bool> HVCloudFit::get_algorithm_input_params_bindable()
 {
-    return { true, false, false, false, false, false, false, false };
+    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
 }
 
 std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()

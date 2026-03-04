@@ -166,7 +166,7 @@ std::vector<std::string> HVCloudPreprocess::get_algorithm_output_params_name()
 
 std::vector<bool> HVCloudPreprocess::get_algorithm_input_params_bindable()
 {
-    return { true, false, false, false, false, false, false };
+    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
 }
 
 std::vector<ParamMetadata> HVCloudPreprocess::get_algorithm_input_params_metadata()

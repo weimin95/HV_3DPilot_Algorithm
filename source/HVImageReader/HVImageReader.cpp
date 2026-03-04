@@ -87,7 +87,7 @@ std::vector<std::string> HVImageReader::get_algorithm_output_params_name()
 
 std::vector<bool> HVImageReader::get_algorithm_input_params_bindable()
 {
-	return { false };
+    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
 }
 
 std::vector<ParamMetadata> HVImageReader::get_algorithm_input_params_metadata()
