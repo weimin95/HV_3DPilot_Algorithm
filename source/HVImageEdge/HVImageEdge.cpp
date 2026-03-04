@@ -3,6 +3,28 @@
 #include <chrono>
 
 #include "HVUtils.h"
+#include "HVI18n.h"
+
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "图像边缘提取", "Image edge" } },
+    { "input.image.name", { "输入图像", "input image" } },
+    { "input.low_threshold.name", { "低阈值", "low threshold" } },
+    { "input.high_threshold.name", { "高阈值", "high threshold" } },
+    { "output.edge.name", { "边缘图像", "edge image" } },
+    { "input.image.desc", { "输入图像", "Input image" } },
+    { "input.low_threshold.desc", { "Canny算法低阈值", "Canny low threshold" } },
+    { "input.high_threshold.desc", { "Canny算法高阈值", "Canny high threshold" } },
+    { "msg.input_null", { "输入图像为空", "Input image is null" } },
+    { "msg.edge_success", { "边缘提取成功", "Extract edge success" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
 
 HVImageEdge::HVImageEdge()
 {
@@ -30,7 +52,7 @@ int HVImageEdge::run()
     if (!inputImg)
     {
         execute_status = ALGORITHM_RUN_ERROR;
-        error_msg = "Input image is null";
+        error_msg = "msg.input_null";
         return ALGORITHM_RUN_ERROR;
     }
 
@@ -56,7 +78,7 @@ int HVImageEdge::run()
     run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
     execute_status = SUCCESS;
-    error_msg = "Extract edge success";
+    error_msg = "msg.edge_success";
     return SUCCESS;
 }
 
@@ -112,12 +134,16 @@ std::vector<int> HVImageEdge::get_algorithm_output_params_type()
 
 std::vector<std::string> HVImageEdge::get_algorithm_input_params_name()
 {
-    return { "input image", "low threshold", "high threshold"};
+    return {
+        Tr(language_, "input.image.name"),
+        Tr(language_, "input.low_threshold.name"),
+        Tr(language_, "input.high_threshold.name")
+    };
 }
 
 std::vector<std::string> HVImageEdge::get_algorithm_output_params_name()
 {
-    return { "output image" };
+    return { Tr(language_, "output.edge.name") };
 }
 
 std::vector<bool> HVImageEdge::get_algorithm_input_params_bindable()
@@ -131,16 +157,16 @@ std::vector<ParamMetadata> HVImageEdge::get_algorithm_input_params_metadata()
 
     // 参数0: 输入图像 (可绑定，无约束)
     ParamMetadata meta0;
-    meta0.param_name = "input image";
-    meta0.param_description = "输入图像";
+    meta0.param_name = Tr(language_, "input.image.name");
+    meta0.param_description = Tr(language_, "input.image.desc");
     meta0.param_type = HV_IMAGEDATAINFO2D;
     meta0.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta0);
 
     // 参数1: Canny低阈值 (范围约束)
     ParamMetadata meta1;
-    meta1.param_name = "low threshold";
-    meta1.param_description = "Canny算法低阈值";
+    meta1.param_name = Tr(language_, "input.low_threshold.name");
+    meta1.param_description = Tr(language_, "input.low_threshold.desc");
     meta1.param_type = HV_DOUBLE;
     meta1.constraint_type = CONSTRAINT_RANGE;
     meta1.range_constraint = RangeConstraint(0.0, 500.0, 50.0);
@@ -148,8 +174,8 @@ std::vector<ParamMetadata> HVImageEdge::get_algorithm_input_params_metadata()
 
     // 参数2: Canny高阈值 (范围约束)
     ParamMetadata meta2;
-    meta2.param_name = "high threshold";
-    meta2.param_description = "Canny算法高阈值";
+    meta2.param_name = Tr(language_, "input.high_threshold.name");
+    meta2.param_description = Tr(language_, "input.high_threshold.desc");
     meta2.param_type = HV_DOUBLE;
     meta2.constraint_type = CONSTRAINT_RANGE;
     meta2.range_constraint = RangeConstraint(0.0, 500.0, 150.0);
@@ -169,7 +195,10 @@ int HVImageEdge::get_algorithm_execute_status()
 
 std::string HVImageEdge::get_algorithm_error_message()
 {
-    return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+    return Tr(language_, error_msg);
 }
 
 long HVImageEdge::get_algorithm_use_time()
@@ -267,6 +296,23 @@ AlgorithmType HVImageEdge::get_algorithm_type()
     return AlgorithmType::ImageProcess;
 }
 
+void HVImageEdge::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVImageEdge::get_language() const
+{
+    return language_;
+}
+
+std::string HVImageEdge::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
     // 每一个 DLL 内部返回自己具体的实现类
     return new HVImageEdge();
@@ -274,4 +320,8 @@ NodeEngine* CreateInstance() {
 
 std::string GetInstanceName() {
     return "Image edge"; // 告知主程序此 DLL 代表的类型
+}
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
 }

@@ -1,5 +1,6 @@
-#include "HVCloudRegister.h"
+﻿#include "HVCloudRegister.h"
 #include "HVUtils.h"
+#include "HVI18n.h"
 
 #include <chrono>
 #include <sstream>
@@ -13,7 +14,69 @@
 #include <pcl/features/fpfh.h>
 #include <pcl/search/kdtree.h>
 
-// 将 Eigen 4x4 矩阵序列化为 JSON 二维数组字符串
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "CN Point cloud register", "Point cloud register" } },
+    { "output.aligned_cloud", { "CN aligned cloud", "aligned cloud" } },
+    { "output.transform_matrix", { "CN transform matrix", "transform matrix" } },
+    { "option.icp", { "CN ICP", "ICP" } },
+    { "option.ndt", { "CN NDT", "NDT" } },
+    { "option.gicp", { "CN GICP", "GICP" } },
+    { "option.fpfh_sac", { "CN FPFH+SAC-IA", "FPFH+SAC-IA" } },
+    { "msg.input_null", { "CN Source or target cloud is null", "Source or target cloud is null" } },
+    { "msg.icp_no_converge", { "CN ICP did not converge", "ICP did not converge" } },
+    { "msg.icp_success", { "CN ICP converged", "ICP converged" } },
+    { "msg.ndt_no_converge", { "CN NDT did not converge", "NDT did not converge" } },
+    { "msg.ndt_success", { "CN NDT converged", "NDT converged" } },
+    { "msg.gicp_no_converge", { "CN GICP did not converge", "GICP did not converge" } },
+    { "msg.gicp_success", { "CN GICP converged", "GICP converged" } },
+    { "msg.sacia_no_converge", { "CN FPFH+SAC-IA did not converge", "FPFH+SAC-IA did not converge" } },
+    { "msg.sacia_success", { "CN FPFH+SAC-IA converged", "FPFH+SAC-IA converged" } },
+    { "msg.unsupported", { "CN Unsupported registration type", "Unsupported registration type" } },
+    { "name.0", { "CN source cloud", "source cloud" } },
+    { "name.1", { "CN target cloud", "target cloud" } },
+    { "name.2", { "CN registration type", "registration type" } },
+    { "name.3", { "CN max iterations", "max iterations" } },
+    { "name.4", { "CN max correspondence distance", "max correspondence distance" } },
+    { "name.5", { "CN transformation epsilon", "transformation epsilon" } },
+    { "name.6", { "CN euclidean fitness epsilon", "euclidean fitness epsilon" } },
+    { "name.7", { "CN ndt resolution", "ndt resolution" } },
+    { "name.8", { "CN ndt step size", "ndt step size" } },
+    { "name.9", { "CN ndt transformation epsilon", "ndt transformation epsilon" } },
+    { "name.10", { "CN ndt max iterations", "ndt max iterations" } },
+    { "name.11", { "CN gicp rotation epsilon", "gicp rotation epsilon" } },
+    { "name.12", { "CN normal radius search", "normal radius search" } },
+    { "name.13", { "CN fpfh radius search", "fpfh radius search" } },
+    { "name.14", { "CN sacia max iterations", "sacia max iterations" } },
+    { "name.15", { "CN sacia min sample distance", "sacia min sample distance" } },
+    { "name.16", { "CN sacia max correspondence distance", "sacia max correspondence distance" } },
+    { "desc.0", { "CN Source point cloud to be registered", "Source point cloud to be registered" } },
+    { "desc.1", { "CN Target reference point cloud", "Target reference point cloud" } },
+    { "desc.2", { "CN Point cloud registration algorithm type", "Point cloud registration algorithm type" } },
+    { "desc.3", { "CN Maximum number of iterations for ICP/GICP", "Maximum number of iterations for ICP/GICP" } },
+    { "desc.4", { "CN Maximum correspondence distance for ICP/GICP", "Maximum distance threshold for correspondence search in ICP/GICP" } },
+    { "desc.5", { "CN Convergence threshold for ICP/GICP", "Convergence threshold for transformation in ICP/GICP (smaller means higher precision)" } },
+    { "desc.6", { "CN Euclidean fitness score threshold for ICP", "Euclidean fitness score convergence threshold for ICP" } },
+    { "desc.7", { "CN Voxel grid resolution for NDT", "Voxel grid resolution for NDT (meters)" } },
+    { "desc.8", { "CN Maximum step size for NDT", "Maximum step size for Newton's method in NDT" } },
+    { "desc.9", { "CN NDT transformation threshold", "Convergence threshold for transformation in NDT" } },
+    { "desc.10", { "CN Maximum iterations for NDT", "Maximum number of iterations for NDT" } },
+    { "desc.11", { "CN Rotation convergence threshold for GICP", "Rotation convergence threshold for GICP" } },
+    { "desc.12", { "CN Search radius for normal estimation in FPFH", "Search radius for normal estimation used in FPFH (meters)" } },
+    { "desc.13", { "CN Search radius for FPFH feature", "Search radius for FPFH feature computation (must be larger than normal radius)" } },
+    { "desc.14", { "CN Maximum iterations for SAC-IA", "Maximum number of iterations for SAC-IA" } },
+    { "desc.15", { "CN Minimum sample distance for SAC-IA", "Minimum distance between sampled points in SAC-IA" } },
+    { "desc.16", { "CN Max feature correspondence distance for SAC-IA", "Maximum feature correspondence distance for SAC-IA" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
+
+// 灏?Eigen 4x4 鐭╅樀搴忓垪鍖栦负 JSON 浜岀淮鏁扮粍瀛楃涓?
 static std::string matrixToJsonString(const Eigen::Matrix4f& mat)
 {
     std::ostringstream oss;
@@ -54,7 +117,7 @@ int HVCloudRegister::run()
     error_msg.clear();
 
     if (!sourceCloud || !targetCloud) {
-        error_msg = "Source or target cloud is null";
+        error_msg = "msg.input_null";
         execute_status = ALGORITHM_RUN_ERROR;
         return ALGORITHM_RUN_ERROR;
     }
@@ -68,7 +131,7 @@ int HVCloudRegister::run()
     {
     case 0:
     {
-        // ICP 迭代最近点
+        // ICP 杩唬鏈€杩戠偣
         pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
         icp.setMaximumIterations(max_iterations);
         icp.setMaxCorrespondenceDistance(max_correspondence_distance);
@@ -79,18 +142,18 @@ int HVCloudRegister::run()
         icp.align(cloudAligned);
 
         if (!icp.hasConverged()) {
-            error_msg = "ICP did not converge";
+            error_msg = "msg.icp_no_converge";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = icp.getFinalTransformation();
-        error_msg = "ICP converged, fitness score: " + std::to_string(icp.getFitnessScore());
+        error_msg = "msg.icp_success";
     }
     break;
     case 1:
     {
-        // NDT 正态分布变换
+        // NDT 姝ｆ€佸垎甯冨彉鎹?
         pcl::NormalDistributionsTransform<pcl::PointXYZ, pcl::PointXYZ> ndt;
         ndt.setResolution(static_cast<float>(ndt_resolution));
         ndt.setStepSize(ndt_step_size);
@@ -101,18 +164,18 @@ int HVCloudRegister::run()
         ndt.align(cloudAligned);
 
         if (!ndt.hasConverged()) {
-            error_msg = "NDT did not converge";
+            error_msg = "msg.ndt_no_converge";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = ndt.getFinalTransformation();
-        error_msg = "NDT converged, fitness score: " + std::to_string(ndt.getFitnessScore());
+        error_msg = "msg.ndt_success";
     }
     break;
     case 2:
     {
-        // GICP 广义迭代最近点
+        // GICP 骞夸箟杩唬鏈€杩戠偣
         pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> gicp;
         gicp.setMaximumIterations(max_iterations);
         gicp.setMaxCorrespondenceDistance(max_correspondence_distance);
@@ -123,19 +186,19 @@ int HVCloudRegister::run()
         gicp.align(cloudAligned);
 
         if (!gicp.hasConverged()) {
-            error_msg = "GICP did not converge";
+            error_msg = "msg.gicp_no_converge";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = gicp.getFinalTransformation();
-        error_msg = "GICP converged, fitness score: " + std::to_string(gicp.getFitnessScore());
+        error_msg = "msg.gicp_success";
     }
     break;
     case 3:
     {
-        // FPFH + SAC-IA 基于特征的全局初始配准
-        // 1. 估计法线
+        // FPFH + SAC-IA 鍩轰簬鐗瑰緛鐨勫叏灞€鍒濆閰嶅噯
+        // 1. 浼拌娉曠嚎
         pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
 
         pcl::PointCloud<pcl::Normal>::Ptr normalsSrc(new pcl::PointCloud<pcl::Normal>);
@@ -152,7 +215,7 @@ int HVCloudRegister::run()
         ne_tgt.setInputCloud(cloudTgt);
         ne_tgt.compute(*normalsTgt);
 
-        // 2. 计算 FPFH 特征
+        // 2. 璁＄畻 FPFH 鐗瑰緛
         pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfhSrc(new pcl::PointCloud<pcl::FPFHSignature33>);
         pcl::FPFHEstimation<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh_src;
         fpfh_src.setSearchMethod(tree);
@@ -169,7 +232,7 @@ int HVCloudRegister::run()
         fpfh_tgt.setInputNormals(normalsTgt);
         fpfh_tgt.compute(*fpfhTgt);
 
-        // 3. SAC-IA 初始配准
+        // 3. SAC-IA 鍒濆閰嶅噯
         pcl::SampleConsensusInitialAlignment<pcl::PointXYZ, pcl::PointXYZ, pcl::FPFHSignature33> sac_ia;
         sac_ia.setMinSampleDistance(static_cast<float>(sacia_min_sample_distance));
         sac_ia.setMaxCorrespondenceDistance(sacia_max_correspondence_distance);
@@ -181,18 +244,18 @@ int HVCloudRegister::run()
         sac_ia.align(cloudAligned);
 
         if (!sac_ia.hasConverged()) {
-            error_msg = "FPFH+SAC-IA did not converge";
+            error_msg = "msg.sacia_no_converge";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
 
         finalTransform = sac_ia.getFinalTransformation();
-        error_msg = "FPFH+SAC-IA converged, fitness score: " + std::to_string(sac_ia.getFitnessScore());
+        error_msg = "msg.sacia_success";
     }
     break;
     default:
     {
-        error_msg = "Unsupported registration type";
+        error_msg = "msg.unsupported";
         execute_status = ALGORITHM_RUN_ERROR;
         return ALGORITHM_RUN_ERROR;
     }
@@ -311,29 +374,29 @@ std::vector<int> HVCloudRegister::get_algorithm_output_params_type()
 std::vector<std::string> HVCloudRegister::get_algorithm_input_params_name()
 {
     return {
-        "source cloud",
-        "target cloud",
-        "registration type",
-        "max iterations",
-        "max correspondence distance",
-        "transformation epsilon",
-        "euclidean fitness epsilon",
-        "ndt resolution",
-        "ndt step size",
-        "ndt transformation epsilon",
-        "ndt max iterations",
-        "gicp rotation epsilon",
-        "normal radius search",
-        "fpfh radius search",
-        "sacia max iterations",
-        "sacia min sample distance",
-        "sacia max correspondence distance"
+        Tr(language_, "name.0"),
+        Tr(language_, "name.1"),
+        Tr(language_, "name.2"),
+        Tr(language_, "name.3"),
+        Tr(language_, "name.4"),
+        Tr(language_, "name.5"),
+        Tr(language_, "name.6"),
+        Tr(language_, "name.7"),
+        Tr(language_, "name.8"),
+        Tr(language_, "name.9"),
+        Tr(language_, "name.10"),
+        Tr(language_, "name.11"),
+        Tr(language_, "name.12"),
+        Tr(language_, "name.13"),
+        Tr(language_, "name.14"),
+        Tr(language_, "name.15"),
+        Tr(language_, "name.16")
     };
 }
 
 std::vector<std::string> HVCloudRegister::get_algorithm_output_params_name()
 {
-    return { "aligned cloud", "transform matrix" };
+    return { Tr(language_, "output.aligned_cloud"), Tr(language_, "output.transform_matrix") };
 }
 
 std::vector<bool> HVCloudRegister::get_algorithm_input_params_bindable()
@@ -345,7 +408,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
 {
     std::vector<ParamMetadata> metadata_list;
 
-    // 参数0: source点云 (可绑定，无约束)
+    // 鍙傛暟0: source鐐逛簯 (鍙粦瀹氾紝鏃犵害鏉?
     ParamMetadata meta0;
     meta0.param_name = "source cloud";
     meta0.param_description = "Source point cloud to be registered";
@@ -353,7 +416,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta0.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta0);
 
-    // 参数1: target点云 (可绑定，无约束)
+    // 鍙傛暟1: target鐐逛簯 (鍙粦瀹氾紝鏃犵害鏉?
     ParamMetadata meta1;
     meta1.param_name = "target cloud";
     meta1.param_description = "Target reference point cloud";
@@ -361,7 +424,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta1.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta1);
 
-    // 参数2: 配准类型 (选项约束)
+    // 鍙傛暟2: 閰嶅噯绫诲瀷 (閫夐」绾︽潫)
     ParamMetadata meta2;
     meta2.param_name = "registration type";
     meta2.param_description = "Point cloud registration algorithm type";
@@ -374,7 +437,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta2.options_constraint.default_index = 0;
     metadata_list.push_back(meta2);
 
-    // 参数3: 最大迭代次数 (ICP/GICP, 依赖type IN [0,2])
+    // 鍙傛暟3: 鏈€澶ц凯浠ｆ鏁?(ICP/GICP, 渚濊禆type IN [0,2])
     ParamMetadata meta3;
     meta3.param_name = "max iterations";
     meta3.param_description = "Maximum number of iterations for ICP/GICP";
@@ -384,7 +447,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta3.dependencies.push_back(ParamDependency(2, DEPENDS_ON_IN_LIST, {"0", "2"}));
     metadata_list.push_back(meta3);
 
-    // 参数4: 最大对应点距离 (ICP/GICP, 依赖type IN [0,2])
+    // 鍙傛暟4: 鏈€澶у搴旂偣璺濈 (ICP/GICP, 渚濊禆type IN [0,2])
     ParamMetadata meta4;
     meta4.param_name = "max correspondence distance";
     meta4.param_description = "Maximum distance threshold for correspondence search in ICP/GICP";
@@ -394,7 +457,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta4.dependencies.push_back(ParamDependency(2, DEPENDS_ON_IN_LIST, {"0", "2"}));
     metadata_list.push_back(meta4);
 
-    // 参数5: 变换收敛阈值 (ICP/GICP, 依赖type IN [0,2])
+    // 鍙傛暟5: 鍙樻崲鏀舵暃闃堝€?(ICP/GICP, 渚濊禆type IN [0,2])
     ParamMetadata meta5;
     meta5.param_name = "transformation epsilon";
     meta5.param_description = "Convergence threshold for transformation in ICP/GICP (smaller means higher precision)";
@@ -404,7 +467,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta5.dependencies.push_back(ParamDependency(2, DEPENDS_ON_IN_LIST, {"0", "2"}));
     metadata_list.push_back(meta5);
 
-    // 参数6: 欧式适应度收敛阈值 (仅ICP, 依赖type=0)
+    // 鍙傛暟6: 娆у紡閫傚簲搴︽敹鏁涢槇鍊?(浠匢CP, 渚濊禆type=0)
     ParamMetadata meta6;
     meta6.param_name = "euclidean fitness epsilon";
     meta6.param_description = "Euclidean fitness score convergence threshold for ICP";
@@ -414,7 +477,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta6.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"0"}));
     metadata_list.push_back(meta6);
 
-    // 参数7: NDT体素分辨率 (依赖type=1)
+    // 鍙傛暟7: NDT浣撶礌鍒嗚鲸鐜?(渚濊禆type=1)
     ParamMetadata meta7;
     meta7.param_name = "ndt resolution";
     meta7.param_description = "Voxel grid resolution for NDT (meters)";
@@ -424,7 +487,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta7.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta7);
 
-    // 参数8: NDT步长 (依赖type=1)
+    // 鍙傛暟8: NDT姝ラ暱 (渚濊禆type=1)
     ParamMetadata meta8;
     meta8.param_name = "ndt step size";
     meta8.param_description = "Maximum step size for Newton's method in NDT";
@@ -434,7 +497,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta8.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta8);
 
-    // 参数9: NDT变换收敛阈值 (依赖type=1)
+    // 鍙傛暟9: NDT鍙樻崲鏀舵暃闃堝€?(渚濊禆type=1)
     ParamMetadata meta9;
     meta9.param_name = "ndt transformation epsilon";
     meta9.param_description = "Convergence threshold for transformation in NDT";
@@ -444,7 +507,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta9.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta9);
 
-    // 参数10: NDT最大迭代次数 (依赖type=1)
+    // 鍙傛暟10: NDT鏈€澶ц凯浠ｆ鏁?(渚濊禆type=1)
     ParamMetadata meta10;
     meta10.param_name = "ndt max iterations";
     meta10.param_description = "Maximum number of iterations for NDT";
@@ -454,7 +517,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta10.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta10);
 
-    // 参数11: GICP旋转收敛阈值 (依赖type=2)
+    // 鍙傛暟11: GICP鏃嬭浆鏀舵暃闃堝€?(渚濊禆type=2)
     ParamMetadata meta11;
     meta11.param_name = "gicp rotation epsilon";
     meta11.param_description = "Rotation convergence threshold for GICP";
@@ -464,7 +527,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta11.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"2"}));
     metadata_list.push_back(meta11);
 
-    // 参数12: 法线估计搜索半径 (依赖type=3)
+    // 鍙傛暟12: 娉曠嚎浼拌鎼滅储鍗婂緞 (渚濊禆type=3)
     ParamMetadata meta12;
     meta12.param_name = "normal radius search";
     meta12.param_description = "Search radius for normal estimation used in FPFH (meters)";
@@ -474,7 +537,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta12.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"3"}));
     metadata_list.push_back(meta12);
 
-    // 参数13: FPFH特征搜索半径 (依赖type=3)
+    // 鍙傛暟13: FPFH鐗瑰緛鎼滅储鍗婂緞 (渚濊禆type=3)
     ParamMetadata meta13;
     meta13.param_name = "fpfh radius search";
     meta13.param_description = "Search radius for FPFH feature computation (must be larger than normal radius)";
@@ -484,7 +547,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta13.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"3"}));
     metadata_list.push_back(meta13);
 
-    // 参数14: SAC-IA最大迭代次数 (依赖type=3)
+    // 鍙傛暟14: SAC-IA鏈€澶ц凯浠ｆ鏁?(渚濊禆type=3)
     ParamMetadata meta14;
     meta14.param_name = "sacia max iterations";
     meta14.param_description = "Maximum number of iterations for SAC-IA";
@@ -494,7 +557,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta14.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"3"}));
     metadata_list.push_back(meta14);
 
-    // 参数15: SAC-IA最小采样距离 (依赖type=3)
+    // 鍙傛暟15: SAC-IA鏈€灏忛噰鏍疯窛绂?(渚濊禆type=3)
     ParamMetadata meta15;
     meta15.param_name = "sacia min sample distance";
     meta15.param_description = "Minimum distance between sampled points in SAC-IA";
@@ -504,7 +567,7 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta15.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"3"}));
     metadata_list.push_back(meta15);
 
-    // 参数16: SAC-IA最大对应点距离 (依赖type=3)
+    // 鍙傛暟16: SAC-IA鏈€澶у搴旂偣璺濈 (渚濊禆type=3)
     ParamMetadata meta16;
     meta16.param_name = "sacia max correspondence distance";
     meta16.param_description = "Maximum feature correspondence distance for SAC-IA";
@@ -513,6 +576,18 @@ std::vector<ParamMetadata> HVCloudRegister::get_algorithm_input_params_metadata(
     meta16.range_constraint = RangeConstraint(0.001, 100.0, 0.5);
     meta16.dependencies.push_back(ParamDependency(2, DEPENDS_ON_EQUALS, {"3"}));
     metadata_list.push_back(meta16);
+
+    for (size_t i = 0; i < metadata_list.size(); ++i) {
+        const std::string idx = std::to_string(i);
+        metadata_list[i].param_name = Tr(language_, "name." + idx);
+        metadata_list[i].param_description = Tr(language_, "desc." + idx);
+    }
+    if (metadata_list.size() > 2 && metadata_list[2].options_constraint.option_labels.size() >= 4) {
+        metadata_list[2].options_constraint.option_labels[0] = Tr(language_, "option.icp");
+        metadata_list[2].options_constraint.option_labels[1] = Tr(language_, "option.ndt");
+        metadata_list[2].options_constraint.option_labels[2] = Tr(language_, "option.gicp");
+        metadata_list[2].options_constraint.option_labels[3] = Tr(language_, "option.fpfh_sac");
+    }
 
     for (size_t i = 0; i < metadata_list.size(); ++i) {
         metadata_list[i].param_group = (i < 3) ? PARAM_GROUP_BASIC : PARAM_GROUP_ADVANCED;
@@ -528,7 +603,10 @@ int HVCloudRegister::get_algorithm_execute_status()
 
 std::string HVCloudRegister::get_algorithm_error_message()
 {
-    return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+    return Tr(language_, error_msg);
 }
 
 long HVCloudRegister::get_algorithm_use_time()
@@ -648,6 +726,23 @@ AlgorithmType HVCloudRegister::get_algorithm_type()
     return AlgorithmType::PointCloudProcess;
 }
 
+void HVCloudRegister::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVCloudRegister::get_language() const
+{
+    return language_;
+}
+
+std::string HVCloudRegister::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
     return new HVCloudRegister();
 }
@@ -655,3 +750,8 @@ NodeEngine* CreateInstance() {
 std::string GetInstanceName() {
     return "Point cloud register";
 }
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
+}
+

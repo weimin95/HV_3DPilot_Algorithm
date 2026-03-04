@@ -52,6 +52,10 @@ public:
 
     AlgorithmType get_algorithm_type();
 
+    void set_language(int language) override;
+    int get_language() const override;
+    std::string get_algorithm_display_name() override;
+
 private:
     std::shared_ptr<ImageDataInfo2D> inputImg;
     std::shared_ptr<ImageDataInfo2D> resultImg;
@@ -61,6 +65,7 @@ private:
     int execute_status = NODE_STATUS_NOT_RUN;
     long run_time = 0;
     std::string error_msg;
+    int language_ = static_cast<int>(UIPilotLanguage::ZH_CN);
 };
 
 extern "C" __declspec(dllexport) NodeEngine* CreateInstance();

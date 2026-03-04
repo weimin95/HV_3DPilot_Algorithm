@@ -1,9 +1,27 @@
 ﻿#include "HVImageReader.h"
 #include "HVUtils.h"
 #include "json.hpp"
+#include "HVI18n.h"
 
 #include <chrono>
 #include <fstream>
+
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "图像读取", "Image read" } },
+    { "input.image_path.name", { "图像路径", "image path" } },
+    { "input.image_path.desc", { "图像文件路径", "Image file path" } },
+    { "output.image.name", { "输出图像", "output image" } },
+    { "msg.read_failed", { "读取图像失败", "Read image failed" } },
+    { "msg.read_success", { "读取图像成功", "Read image success" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
 
 HVImageReader::HVImageReader()
 {
@@ -31,7 +49,7 @@ int HVImageReader::run()
 	cv::Mat img = cv::imread(image_path, cv::IMREAD_UNCHANGED);
 	if (img.empty()) 
 	{
-		error_msg = "Read image failed";
+		error_msg = "msg.read_failed";
 		execute_status = ALGORITHM_RUN_ERROR;
 		return ALGORITHM_RUN_ERROR;
 	}
@@ -41,7 +59,7 @@ int HVImageReader::run()
 	auto end = std::chrono::high_resolution_clock::now();
 	run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-	error_msg = "Read image success";
+	error_msg = "msg.read_success";
 
 	return SUCCESS;
 }
@@ -77,12 +95,12 @@ std::vector<int> HVImageReader::get_algorithm_output_params_type()
 
 std::vector<std::string> HVImageReader::get_algorithm_input_params_name()
 {
-	return { "image path" };
+	return { Tr(language_, "input.image_path.name") };
 }
 
 std::vector<std::string> HVImageReader::get_algorithm_output_params_name()
 {
-	return { "output image" };
+	return { Tr(language_, "output.image.name") };
 }
 
 std::vector<bool> HVImageReader::get_algorithm_input_params_bindable()
@@ -96,8 +114,8 @@ std::vector<ParamMetadata> HVImageReader::get_algorithm_input_params_metadata()
 
     // 参数0: 图像文件路径 (文件路径约束)
     ParamMetadata meta0;
-    meta0.param_name = "image path";
-    meta0.param_description = "图像文件路径";
+    meta0.param_name = Tr(language_, "input.image_path.name");
+    meta0.param_description = Tr(language_, "input.image_path.desc");
     meta0.param_type = HV_STRING;
     meta0.constraint_type = CONSTRAINT_FILE_PATH;
     meta0.file_filter = "*.jpg;*.jpeg;*.png;*.bmp;*.tiff;*.tif";
@@ -113,7 +131,10 @@ int HVImageReader::get_algorithm_execute_status()
 
 std::string HVImageReader::get_algorithm_error_message()
 {
-	return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+	return Tr(language_, error_msg);
 }
 
 long HVImageReader::get_algorithm_use_time()
@@ -205,6 +226,23 @@ AlgorithmType HVImageReader::get_algorithm_type()
     return AlgorithmType::Capture;
 }
 
+void HVImageReader::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVImageReader::get_language() const
+{
+    return language_;
+}
+
+std::string HVImageReader::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
 	// 每一个 DLL 内部返回自己具体的实现类
 	return new HVImageReader();
@@ -212,4 +250,8 @@ NodeEngine* CreateInstance() {
 
 std::string GetInstanceName() {
 	return "Image read"; // 告知主程序此 DLL 代表的类型
+}
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
 }

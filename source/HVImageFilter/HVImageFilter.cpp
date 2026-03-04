@@ -1,6 +1,36 @@
 ﻿#include "HVImageFilter.h"
 #include "HVUtils.h"
+#include "HVI18n.h"
 #include <chrono>
+
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "图像滤波", "Image filter" } },
+    { "input.image.name", { "输入图像", "input image" } },
+    { "input.filter_type.name", { "滤波类型", "filter type" } },
+    { "input.kernel_size.name", { "卷积核大小", "kernel size" } },
+    { "input.sigma.name", { "sigma", "sigma" } },
+    { "output.image.name", { "输出图像", "output image" } },
+    { "input.image.desc", { "输入图像", "Input image" } },
+    { "input.filter_type.desc", { "滤波算法类型", "Filter algorithm type" } },
+    { "input.kernel_size.desc", { "卷积核大小（必须为奇数）", "Kernel size (must be odd)" } },
+    { "input.sigma.desc", { "标准差（对Gaussian和Bilateral有效）", "Sigma (valid for Gaussian/Bilateral)" } },
+    { "option.gaussian", { "高斯滤波", "Gaussian" } },
+    { "option.median", { "中值滤波", "Median" } },
+    { "option.bilateral", { "双边滤波", "Bilateral" } },
+    { "msg.input_null", { "输入图像为空", "Input image is null" } },
+    { "msg.gaussian_success", { "高斯滤波执行成功", "Run gaussian filter success" } },
+    { "msg.median_success", { "中值滤波执行成功", "Run median filter success" } },
+    { "msg.bilateral_success", { "双边滤波执行成功", "Run bilateral filter success" } },
+    { "msg.unsupported_filter", { "不支持的滤波类型", "Unsupported filter type" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
 
 
 HVImageFilter::HVImageFilter()
@@ -27,7 +57,7 @@ int HVImageFilter::run()
     if (!inputImg)
     {
         execute_status = ALGORITHM_RUN_ERROR;
-        error_msg = "Input image is null";
+        error_msg = "msg.input_null";
         return ALGORITHM_RUN_ERROR;
     }
 
@@ -40,22 +70,22 @@ int HVImageFilter::run()
     {
     case 0: // Gaussian
         cv::GaussianBlur(input, output, cv::Size(kernel_size, kernel_size), sigma);
-        error_msg = "Run gaussian filter success";
+        error_msg = "msg.gaussian_success";
         break;
 
     case 1: // Median
         cv::medianBlur(input, output, kernel_size);
-        error_msg = "Run median filter success";
+        error_msg = "msg.median_success";
         break;
 
     case 2: // Bilateral
         cv::bilateralFilter(input, output, kernel_size, sigma, sigma);
-        error_msg = "Run bilateral filter success";
+        error_msg = "msg.bilateral_success";
         break;
 
     default:
         execute_status = ALGORITHM_RUN_ERROR;
-        error_msg = "Unsupported filter type";
+        error_msg = "msg.unsupported_filter";
         return ALGORITHM_RUN_ERROR;
     }
 
@@ -127,12 +157,17 @@ std::vector<int> HVImageFilter::get_algorithm_output_params_type()
 
 std::vector<std::string> HVImageFilter::get_algorithm_input_params_name()
 {
-    return { "input image", "filter type", "kernel size", "sigma" };
+    return {
+        Tr(language_, "input.image.name"),
+        Tr(language_, "input.filter_type.name"),
+        Tr(language_, "input.kernel_size.name"),
+        Tr(language_, "input.sigma.name")
+    };
 }
 
 std::vector<std::string> HVImageFilter::get_algorithm_output_params_name()
 {
-    return { "output image" };
+    return { Tr(language_, "output.image.name") };
 }
 
 std::vector<bool> HVImageFilter::get_algorithm_input_params_bindable()
@@ -146,28 +181,28 @@ std::vector<ParamMetadata> HVImageFilter::get_algorithm_input_params_metadata()
 
     // 参数0: 输入图像 (可绑定，无约束)
     ParamMetadata meta0;
-    meta0.param_name = "input image";
-    meta0.param_description = "输入图像";
+    meta0.param_name = Tr(language_, "input.image.name");
+    meta0.param_description = Tr(language_, "input.image.desc");
     meta0.param_type = HV_IMAGEDATAINFO2D;
     meta0.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta0);
 
     // 参数1: 滤波类型 (选项约束)
     ParamMetadata meta1;
-    meta1.param_name = "filter type";
-    meta1.param_description = "滤波算法类型";
+    meta1.param_name = Tr(language_, "input.filter_type.name");
+    meta1.param_description = Tr(language_, "input.filter_type.desc");
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption(0, "Gaussian (高斯滤波)");
-    meta1.options_constraint.AddOption(1, "Median (中值滤波)");
-    meta1.options_constraint.AddOption(2, "Bilateral (双边滤波)");
+    meta1.options_constraint.AddOption(0, Tr(language_, "option.gaussian"));
+    meta1.options_constraint.AddOption(1, Tr(language_, "option.median"));
+    meta1.options_constraint.AddOption(2, Tr(language_, "option.bilateral"));
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 
     // 参数2: 卷积核大小 (范围约束)
     ParamMetadata meta2;
-    meta2.param_name = "kernel size";
-    meta2.param_description = "卷积核大小（必须为奇数）";
+    meta2.param_name = Tr(language_, "input.kernel_size.name");
+    meta2.param_description = Tr(language_, "input.kernel_size.desc");
     meta2.param_type = HV_INT;
     meta2.constraint_type = CONSTRAINT_RANGE;
     meta2.range_constraint = RangeConstraint(1, 31, 3);
@@ -175,8 +210,8 @@ std::vector<ParamMetadata> HVImageFilter::get_algorithm_input_params_metadata()
 
     // 参数3: sigma值 (范围约束，依赖filter_type为Gaussian或Bilateral)
     ParamMetadata meta3;
-    meta3.param_name = "sigma";
-    meta3.param_description = "标准差（对Gaussian和Bilateral有效）";
+    meta3.param_name = Tr(language_, "input.sigma.name");
+    meta3.param_description = Tr(language_, "input.sigma.desc");
     meta3.param_type = HV_DOUBLE;
     meta3.constraint_type = CONSTRAINT_RANGE;
     meta3.range_constraint = RangeConstraint(0.1, 100.0, 1.0);
@@ -197,7 +232,10 @@ int HVImageFilter::get_algorithm_execute_status()
 
 std::string HVImageFilter::get_algorithm_error_message()
 {
-    return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+    return Tr(language_, error_msg);
 }
 
 long HVImageFilter::get_algorithm_use_time()
@@ -301,6 +339,23 @@ AlgorithmType HVImageFilter::get_algorithm_type()
     return AlgorithmType::ImageProcess;
 }
 
+void HVImageFilter::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVImageFilter::get_language() const
+{
+    return language_;
+}
+
+std::string HVImageFilter::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
     // 每一个 DLL 内部返回自己具体的实现类
     return new HVImageFilter();
@@ -308,4 +363,8 @@ NodeEngine* CreateInstance() {
 
 std::string GetInstanceName() {
     return "Image filter"; // 告知主程序此 DLL 代表的类型
+}
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
 }

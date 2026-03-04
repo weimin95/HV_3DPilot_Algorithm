@@ -1,5 +1,6 @@
 ﻿#include "HVCloudSegment.h"
 #include "HVUtils.h"
+#include "HVI18n.h"
 
 #include <chrono>
 
@@ -9,6 +10,50 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/search/kdtree.h>
+
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "点云分割", "Point cloud segment" } },
+    { "input.cloud.name", { "输入点云", "input cloud" } },
+    { "input.type.name", { "分割类型", "segment type" } },
+    { "input.distance_threshold.name", { "距离阈值", "distance threshold" } },
+    { "input.max_iterations.name", { "最大迭代次数", "max iterations" } },
+    { "input.cluster_tolerance.name", { "聚类距离容差", "cluster tolerance" } },
+    { "input.min_cluster_size.name", { "最小聚类点数", "min cluster size" } },
+    { "input.max_cluster_size.name", { "最大聚类点数", "max cluster size" } },
+    { "input.neighbours.name", { "邻域点数", "number of neighbours" } },
+    { "input.smoothness.name", { "平滑度阈值", "smoothness threshold" } },
+    { "input.curvature.name", { "曲率阈值", "curvature threshold" } },
+    { "output.cloud.name", { "输出点云", "output cloud" } },
+    { "input.cloud.desc", { "输入点云数据", "Input cloud data" } },
+    { "input.type.desc", { "点云分割算法类型", "Point cloud segmentation type" } },
+    { "input.distance_threshold.desc", { "RANSAC点到平面距离阈值", "RANSAC point-to-plane threshold" } },
+    { "input.max_iterations.desc", { "RANSAC最大迭代次数", "RANSAC max iterations" } },
+    { "input.cluster_tolerance.desc", { "欧式聚类点间距离容差", "Euclidean cluster tolerance" } },
+    { "input.min_cluster_size.desc", { "最小聚类点数", "Minimum cluster size" } },
+    { "input.max_cluster_size.desc", { "最大聚类点数", "Maximum cluster size" } },
+    { "input.neighbours.desc", { "区域生长KNN邻域点数", "Region growing KNN neighbours" } },
+    { "input.smoothness.desc", { "区域生长平滑度角度阈值（度）", "Region growing smoothness threshold (deg)" } },
+    { "input.curvature.desc", { "区域生长曲率阈值", "Region growing curvature threshold" } },
+    { "option.ransac", { "RANSAC平面分割", "RANSAC plane segmentation" } },
+    { "option.euclidean", { "欧式聚类分割", "Euclidean cluster extraction" } },
+    { "option.region_growing", { "区域生长分割", "Region growing segmentation" } },
+    { "msg.input_null", { "输入点云为空", "Input cloud is null" } },
+    { "msg.ransac_no_inliers", { "RANSAC平面分割未找到内点", "RANSAC plane segmentation: no inliers found" } },
+    { "msg.ransac_success", { "RANSAC平面分割成功", "RANSAC plane segmentation success" } },
+    { "msg.euclidean_no_clusters", { "欧式聚类未找到聚类", "Euclidean cluster extraction: no clusters found" } },
+    { "msg.euclidean_success", { "欧式聚类成功", "Euclidean cluster extraction success" } },
+    { "msg.region_no_clusters", { "区域生长未找到聚类", "Region growing segmentation: no clusters found" } },
+    { "msg.region_success", { "区域生长分割成功", "Region growing segmentation success" } },
+    { "msg.unsupported", { "不支持的分割类型", "Unsupported segmentation type" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
 
 HVCloudSegment::HVCloudSegment()
 {
@@ -36,7 +81,7 @@ int HVCloudSegment::run()
     if (!inputCloud)
     {
         execute_status = ALGORITHM_RUN_ERROR;
-        error_msg = "Input cloud is null";
+        error_msg = "msg.input_null";
         return ALGORITHM_RUN_ERROR;
     }
 
@@ -61,7 +106,7 @@ int HVCloudSegment::run()
         seg.segment(*inliers, *coefficients);
 
         if (inliers->indices.empty()) {
-            error_msg = "RANSAC plane segmentation: no inliers found";
+            error_msg = "msg.ransac_no_inliers";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
@@ -73,7 +118,7 @@ int HVCloudSegment::run()
         extract.setNegative(false);
         extract.filter(*cloudOut);
 
-        error_msg = "RANSAC plane segmentation success, inliers: " + std::to_string(cloudOut->size());
+        error_msg = "msg.ransac_success";
     }
     break;
     case 1:
@@ -92,7 +137,7 @@ int HVCloudSegment::run()
         ec.extract(cluster_indices);
 
         if (cluster_indices.empty()) {
-            error_msg = "Euclidean cluster extraction: no clusters found";
+            error_msg = "msg.euclidean_no_clusters";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
@@ -114,8 +159,7 @@ int HVCloudSegment::run()
         extract.setNegative(false);
         extract.filter(*cloudOut);
 
-        error_msg = "Euclidean cluster extraction success, clusters: " + std::to_string(cluster_indices.size())
-            + ", largest cluster size: " + std::to_string(cloudOut->size());
+        error_msg = "msg.euclidean_success";
     }
     break;
     case 2:
@@ -146,7 +190,7 @@ int HVCloudSegment::run()
         reg.extract(clusters);
 
         if (clusters.empty()) {
-            error_msg = "Region growing segmentation: no clusters found";
+            error_msg = "msg.region_no_clusters";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
@@ -168,13 +212,12 @@ int HVCloudSegment::run()
         extract.setNegative(false);
         extract.filter(*cloudOut);
 
-        error_msg = "Region growing segmentation success, clusters: " + std::to_string(clusters.size())
-            + ", largest cluster size: " + std::to_string(cloudOut->size());
+        error_msg = "msg.region_success";
     }
     break;
     default:
     {
-        error_msg = "Unsupported segmentation type";
+        error_msg = "msg.unsupported";
         execute_status = ALGORITHM_RUN_ERROR;
         return ALGORITHM_RUN_ERROR;
     }
@@ -286,22 +329,22 @@ std::vector<int> HVCloudSegment::get_algorithm_output_params_type()
 std::vector<std::string> HVCloudSegment::get_algorithm_input_params_name()
 {
     return {
-        "input cloud",
-        "segment type",
-        "distance threshold",
-        "max iterations",
-        "cluster tolerance",
-        "min cluster size",
-        "max cluster size",
-        "number of neighbours",
-        "smoothness threshold",
-        "curvature threshold"
+        Tr(language_, "input.cloud.name"),
+        Tr(language_, "input.type.name"),
+        Tr(language_, "input.distance_threshold.name"),
+        Tr(language_, "input.max_iterations.name"),
+        Tr(language_, "input.cluster_tolerance.name"),
+        Tr(language_, "input.min_cluster_size.name"),
+        Tr(language_, "input.max_cluster_size.name"),
+        Tr(language_, "input.neighbours.name"),
+        Tr(language_, "input.smoothness.name"),
+        Tr(language_, "input.curvature.name")
     };
 }
 
 std::vector<std::string> HVCloudSegment::get_algorithm_output_params_name()
 {
-    return { "output point cloud" };
+    return { Tr(language_, "output.cloud.name") };
 }
 
 std::vector<bool> HVCloudSegment::get_algorithm_input_params_bindable()
@@ -315,28 +358,28 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数0: 输入点云 (可绑定，无约束)
     ParamMetadata meta0;
-    meta0.param_name = "input cloud";
-    meta0.param_description = "输入点云数据";
+    meta0.param_name = Tr(language_, "input.cloud.name");
+    meta0.param_description = Tr(language_, "input.cloud.desc");
     meta0.param_type = HV_POINTCLOUD;
     meta0.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta0);
 
     // 参数1: 分割类型 (选项约束)
     ParamMetadata meta1;
-    meta1.param_name = "segment type";
-    meta1.param_description = "点云分割算法类型";
+    meta1.param_name = Tr(language_, "input.type.name");
+    meta1.param_description = Tr(language_, "input.type.desc");
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption(0, "RANSAC (平面分割)");
-    meta1.options_constraint.AddOption(1, "Euclidean (欧式聚类)");
-    meta1.options_constraint.AddOption(2, "RegionGrowing (区域生长)");
+    meta1.options_constraint.AddOption(0, Tr(language_, "option.ransac"));
+    meta1.options_constraint.AddOption(1, Tr(language_, "option.euclidean"));
+    meta1.options_constraint.AddOption(2, Tr(language_, "option.region_growing"));
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 
     // 参数2: 距离阈值 (RANSAC, 依赖type=0)
     ParamMetadata meta2;
-    meta2.param_name = "distance threshold";
-    meta2.param_description = "RANSAC点到平面距离阈值";
+    meta2.param_name = Tr(language_, "input.distance_threshold.name");
+    meta2.param_description = Tr(language_, "input.distance_threshold.desc");
     meta2.param_type = HV_DOUBLE;
     meta2.constraint_type = CONSTRAINT_RANGE;
     meta2.range_constraint = RangeConstraint(0.001, 100.0, 0.01);
@@ -345,8 +388,8 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数3: 最大迭代次数 (RANSAC, 依赖type=0)
     ParamMetadata meta3;
-    meta3.param_name = "max iterations";
-    meta3.param_description = "RANSAC最大迭代次数";
+    meta3.param_name = Tr(language_, "input.max_iterations.name");
+    meta3.param_description = Tr(language_, "input.max_iterations.desc");
     meta3.param_type = HV_INT;
     meta3.constraint_type = CONSTRAINT_RANGE;
     meta3.range_constraint = RangeConstraint(1, 10000, 1000);
@@ -355,8 +398,8 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数4: 聚类距离容差 (欧式聚类, 依赖type=1)
     ParamMetadata meta4;
-    meta4.param_name = "cluster tolerance";
-    meta4.param_description = "欧式聚类点间距离容差";
+    meta4.param_name = Tr(language_, "input.cluster_tolerance.name");
+    meta4.param_description = Tr(language_, "input.cluster_tolerance.desc");
     meta4.param_type = HV_DOUBLE;
     meta4.constraint_type = CONSTRAINT_RANGE;
     meta4.range_constraint = RangeConstraint(0.001, 100.0, 0.02);
@@ -365,8 +408,8 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数5: 最小聚类点数 (欧式聚类/区域生长, 依赖type IN [1,2])
     ParamMetadata meta5;
-    meta5.param_name = "min cluster size";
-    meta5.param_description = "最小聚类点数";
+    meta5.param_name = Tr(language_, "input.min_cluster_size.name");
+    meta5.param_description = Tr(language_, "input.min_cluster_size.desc");
     meta5.param_type = HV_INT;
     meta5.constraint_type = CONSTRAINT_RANGE;
     meta5.range_constraint = RangeConstraint(1, 1000000, 100);
@@ -375,8 +418,8 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数6: 最大聚类点数 (欧式聚类/区域生长, 依赖type IN [1,2])
     ParamMetadata meta6;
-    meta6.param_name = "max cluster size";
-    meta6.param_description = "最大聚类点数";
+    meta6.param_name = Tr(language_, "input.max_cluster_size.name");
+    meta6.param_description = Tr(language_, "input.max_cluster_size.desc");
     meta6.param_type = HV_INT;
     meta6.constraint_type = CONSTRAINT_RANGE;
     meta6.range_constraint = RangeConstraint(1, 10000000, 100000);
@@ -385,8 +428,8 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数7: 邻域点数 (区域生长, 依赖type=2)
     ParamMetadata meta7;
-    meta7.param_name = "number of neighbours";
-    meta7.param_description = "区域生长KNN邻域点数";
+    meta7.param_name = Tr(language_, "input.neighbours.name");
+    meta7.param_description = Tr(language_, "input.neighbours.desc");
     meta7.param_type = HV_INT;
     meta7.constraint_type = CONSTRAINT_RANGE;
     meta7.range_constraint = RangeConstraint(1, 200, 30);
@@ -395,8 +438,8 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数8: 平滑度阈值 (区域生长, 依赖type=2)
     ParamMetadata meta8;
-    meta8.param_name = "smoothness threshold";
-    meta8.param_description = "区域生长平滑度角度阈值（度）";
+    meta8.param_name = Tr(language_, "input.smoothness.name");
+    meta8.param_description = Tr(language_, "input.smoothness.desc");
     meta8.param_type = HV_FLOAT;
     meta8.constraint_type = CONSTRAINT_RANGE;
     meta8.range_constraint = RangeConstraint(0.1, 180.0, 3.0);
@@ -405,8 +448,8 @@ std::vector<ParamMetadata> HVCloudSegment::get_algorithm_input_params_metadata()
 
     // 参数9: 曲率阈值 (区域生长, 依赖type=2)
     ParamMetadata meta9;
-    meta9.param_name = "curvature threshold";
-    meta9.param_description = "区域生长曲率阈值";
+    meta9.param_name = Tr(language_, "input.curvature.name");
+    meta9.param_description = Tr(language_, "input.curvature.desc");
     meta9.param_type = HV_FLOAT;
     meta9.constraint_type = CONSTRAINT_RANGE;
     meta9.range_constraint = RangeConstraint(0.001, 100.0, 1.0);
@@ -427,7 +470,10 @@ int HVCloudSegment::get_algorithm_execute_status()
 
 std::string HVCloudSegment::get_algorithm_error_message()
 {
-    return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+    return Tr(language_, error_msg);
 }
 
 long HVCloudSegment::get_algorithm_use_time()
@@ -542,6 +588,23 @@ AlgorithmType HVCloudSegment::get_algorithm_type()
     return AlgorithmType::PointCloudProcess;
 }
 
+void HVCloudSegment::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVCloudSegment::get_language() const
+{
+    return language_;
+}
+
+std::string HVCloudSegment::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
     // 每一个 DLL 内部返回自己具体的实现类
     return new HVCloudSegment();
@@ -549,4 +612,8 @@ NodeEngine* CreateInstance() {
 
 std::string GetInstanceName() {
     return "Point cloud segment"; // 告知主程序此 DLL 代表的类型
+}
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
 }

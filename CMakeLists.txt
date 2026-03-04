@@ -109,6 +109,9 @@ macro(add_algorithm_plugin DIR_NAME)
         
         # 统一设置导出宏
         target_compile_definitions(${DIR_NAME} PRIVATE HV_3DPILOT_EXPORTS)
+        if(MSVC)
+            target_compile_options(${DIR_NAME} PRIVATE /bigobj)
+        endif()
         
         # ========== 修改部分：按目录名分类输出 DLL ==========
         # 将 DLL 输出到 plugins/${DIR_NAME} 子目录下

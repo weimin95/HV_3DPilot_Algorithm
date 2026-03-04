@@ -1,5 +1,6 @@
-#include "HVCloudFit.h"
+﻿#include "HVCloudFit.h"
 #include "HVUtils.h"
+#include "HVI18n.h"
 
 #include <chrono>
 #include <sstream>
@@ -9,6 +10,44 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/search/kdtree.h>
+
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "CN Point cloud fit", "Point cloud fit" } },
+    { "output.inlier_cloud", { "CN inlier cloud", "inlier cloud" } },
+    { "output.model_coeff", { "CN model coefficients", "model coefficients" } },
+    { "option.plane", { "CN Plane", "Plane" } },
+    { "option.cylinder", { "CN Cylinder", "Cylinder" } },
+    { "msg.input_null", { "CN Input cloud is null", "Input cloud is null" } },
+    { "msg.plane_no_inliers", { "CN Plane fitting no inliers", "Plane fitting: no inliers found" } },
+    { "msg.plane_success", { "CN Plane fitting success", "Plane fitting success" } },
+    { "msg.cylinder_no_inliers", { "CN Cylinder fitting no inliers", "Cylinder fitting: no inliers found" } },
+    { "msg.cylinder_success", { "CN Cylinder fitting success", "Cylinder fitting success" } },
+    { "msg.unsupported", { "CN Unsupported fit type", "Unsupported fit type" } },
+    { "name.0", { "CN input cloud", "input cloud" } },
+    { "name.1", { "CN fit type", "fit type" } },
+    { "name.2", { "CN distance threshold", "distance threshold" } },
+    { "name.3", { "CN max iterations", "max iterations" } },
+    { "name.4", { "CN normal radius search", "normal radius search" } },
+    { "name.5", { "CN normal distance weight", "normal distance weight" } },
+    { "name.6", { "CN radius min", "radius min" } },
+    { "name.7", { "CN radius max", "radius max" } },
+    { "desc.0", { "CN Input point cloud to be fitted", "Input point cloud to be fitted" } },
+    { "desc.1", { "CN Geometric model type to fit", "Geometric model type to fit" } },
+    { "desc.2", { "CN Maximum distance to model", "Maximum distance from a point to the model to be considered an inlier" } },
+    { "desc.3", { "CN Maximum RANSAC iterations", "Maximum number of RANSAC iterations" } },
+    { "desc.4", { "CN Normal estimation radius", "Search radius for normal estimation (cylinder fitting only)" } },
+    { "desc.5", { "CN Normal distance weight [0,1]", "Weight for the normal direction component in the distance metric [0, 1]" } },
+    { "desc.6", { "CN Minimum cylinder radius", "Minimum allowed cylinder radius" } },
+    { "desc.7", { "CN Maximum cylinder radius", "Maximum allowed cylinder radius" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
 
 HVCloudFit::HVCloudFit()
 {
@@ -32,7 +71,7 @@ int HVCloudFit::run()
     error_msg.clear();
 
     if (!inputCloud) {
-        error_msg = "Input cloud is null";
+        error_msg = "msg.input_null";
         execute_status = ALGORITHM_RUN_ERROR;
         return ALGORITHM_RUN_ERROR;
     }
@@ -46,7 +85,7 @@ int HVCloudFit::run()
     {
     case 0:
     {
-        // 平面拟合：RANSAC + SACMODEL_PLANE
+        // 骞抽潰鎷熷悎锛歊ANSAC + SACMODEL_PLANE
         pcl::SACSegmentation<pcl::PointXYZ> seg;
         seg.setOptimizeCoefficients(true);
         seg.setModelType(pcl::SACMODEL_PLANE);
@@ -57,19 +96,19 @@ int HVCloudFit::run()
         seg.segment(*inliers, *coefficients);
 
         if (inliers->indices.empty()) {
-            error_msg = "Plane fitting: no inliers found";
+            error_msg = "msg.plane_no_inliers";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
 
-        // 提取内点
+        // 鎻愬彇鍐呯偣
         pcl::ExtractIndices<pcl::PointXYZ> extract;
         extract.setInputCloud(cloudIn);
         extract.setIndices(inliers);
         extract.setNegative(false);
         extract.filter(cloudInlier);
 
-        // 模型系数: [a, b, c, d]，平面方程 ax + by + cz + d = 0
+        // 妯″瀷绯绘暟: [a, b, c, d]锛屽钩闈㈡柟绋?ax + by + cz + d = 0
         float a = coefficients->values[0];
         float b = coefficients->values[1];
         float c = coefficients->values[2];
@@ -80,15 +119,13 @@ int HVCloudFit::run()
         oss << "{\"a\":" << a << ",\"b\":" << b << ",\"c\":" << c << ",\"d\":" << d << "}";
         modelCoefficients = oss.str();
 
-        error_msg = "Plane fitting success, inliers: " + std::to_string(cloudInlier.size())
-            + ", equation: " + std::to_string(a) + "x + " + std::to_string(b) + "y + "
-            + std::to_string(c) + "z + " + std::to_string(d) + " = 0";
+        error_msg = "msg.plane_success";
     }
     break;
     case 1:
     {
-        // 圆柱拟合：需要法线，使用 SACSegmentationFromNormals + SACMODEL_CYLINDER
-        // 1. 估计法线
+        // 鍦嗘煴鎷熷悎锛氶渶瑕佹硶绾匡紝浣跨敤 SACSegmentationFromNormals + SACMODEL_CYLINDER
+        // 1. 浼拌娉曠嚎
         pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
         pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
 
@@ -98,7 +135,7 @@ int HVCloudFit::run()
         ne.setInputCloud(cloudIn);
         ne.compute(*normals);
 
-        // 2. 圆柱分割
+        // 2. 鍦嗘煴鍒嗗壊
         pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
         seg.setOptimizeCoefficients(true);
         seg.setModelType(pcl::SACMODEL_CYLINDER);
@@ -112,20 +149,20 @@ int HVCloudFit::run()
         seg.segment(*inliers, *coefficients);
 
         if (inliers->indices.empty()) {
-            error_msg = "Cylinder fitting: no inliers found";
+            error_msg = "msg.cylinder_no_inliers";
             execute_status = ALGORITHM_RUN_ERROR;
             return ALGORITHM_RUN_ERROR;
         }
 
-        // 提取内点
+        // 鎻愬彇鍐呯偣
         pcl::ExtractIndices<pcl::PointXYZ> extract;
         extract.setInputCloud(cloudIn);
         extract.setIndices(inliers);
         extract.setNegative(false);
         extract.filter(cloudInlier);
 
-        // 模型系数: [point_x, point_y, point_z, axis_x, axis_y, axis_z, radius]
-        // point 为轴线上一点，axis 为轴线方向向量，radius 为圆柱半径
+        // 妯″瀷绯绘暟: [point_x, point_y, point_z, axis_x, axis_y, axis_z, radius]
+        // point 涓鸿酱绾夸笂涓€鐐癸紝axis 涓鸿酱绾挎柟鍚戝悜閲忥紝radius 涓哄渾鏌卞崐寰?
         float px = coefficients->values[0];
         float py = coefficients->values[1];
         float pz = coefficients->values[2];
@@ -147,13 +184,12 @@ int HVCloudFit::run()
             << "}";
         modelCoefficients = oss.str();
 
-        error_msg = "Cylinder fitting success, inliers: " + std::to_string(cloudInlier.size())
-            + ", radius: " + std::to_string(r);
+        error_msg = "msg.cylinder_success";
     }
     break;
     default:
     {
-        error_msg = "Unsupported fit type";
+        error_msg = "msg.unsupported";
         execute_status = ALGORITHM_RUN_ERROR;
         return ALGORITHM_RUN_ERROR;
     }
@@ -238,20 +274,20 @@ std::vector<int> HVCloudFit::get_algorithm_output_params_type()
 std::vector<std::string> HVCloudFit::get_algorithm_input_params_name()
 {
     return {
-        "input cloud",
-        "fit type",
-        "distance threshold",
-        "max iterations",
-        "normal radius search",
-        "normal distance weight",
-        "radius min",
-        "radius max"
+        Tr(language_, "name.0"),
+        Tr(language_, "name.1"),
+        Tr(language_, "name.2"),
+        Tr(language_, "name.3"),
+        Tr(language_, "name.4"),
+        Tr(language_, "name.5"),
+        Tr(language_, "name.6"),
+        Tr(language_, "name.7")
     };
 }
 
 std::vector<std::string> HVCloudFit::get_algorithm_output_params_name()
 {
-    return { "inlier cloud", "model coefficients" };
+    return { Tr(language_, "output.inlier_cloud"), Tr(language_, "output.model_coeff") };
 }
 
 std::vector<bool> HVCloudFit::get_algorithm_input_params_bindable()
@@ -263,7 +299,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
 {
     std::vector<ParamMetadata> metadata_list;
 
-    // 参数0: 输入点云 (可绑定，无约束)
+    // 鍙傛暟0: 杈撳叆鐐逛簯 (鍙粦瀹氾紝鏃犵害鏉?
     ParamMetadata meta0;
     meta0.param_name = "input cloud";
     meta0.param_description = "Input point cloud to be fitted";
@@ -271,7 +307,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta0.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta0);
 
-    // 参数1: 拟合类型 (选项约束)
+    // 鍙傛暟1: 鎷熷悎绫诲瀷 (閫夐」绾︽潫)
     ParamMetadata meta1;
     meta1.param_name = "fit type";
     meta1.param_description = "Geometric model type to fit";
@@ -282,7 +318,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 
-    // 参数2: RANSAC距离阈值 (共用, 依赖type IN [0,1])
+    // 鍙傛暟2: RANSAC璺濈闃堝€?(鍏辩敤, 渚濊禆type IN [0,1])
     ParamMetadata meta2;
     meta2.param_name = "distance threshold";
     meta2.param_description = "Maximum distance from a point to the model to be considered an inlier";
@@ -292,7 +328,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta2.dependencies.push_back(ParamDependency(1, DEPENDS_ON_IN_LIST, {"0", "1"}));
     metadata_list.push_back(meta2);
 
-    // 参数3: 最大迭代次数 (共用, 依赖type IN [0,1])
+    // 鍙傛暟3: 鏈€澶ц凯浠ｆ鏁?(鍏辩敤, 渚濊禆type IN [0,1])
     ParamMetadata meta3;
     meta3.param_name = "max iterations";
     meta3.param_description = "Maximum number of RANSAC iterations";
@@ -302,7 +338,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta3.dependencies.push_back(ParamDependency(1, DEPENDS_ON_IN_LIST, {"0", "1"}));
     metadata_list.push_back(meta3);
 
-    // 参数4: 法线估计搜索半径 (圆柱, 依赖type=1)
+    // 鍙傛暟4: 娉曠嚎浼拌鎼滅储鍗婂緞 (鍦嗘煴, 渚濊禆type=1)
     ParamMetadata meta4;
     meta4.param_name = "normal radius search";
     meta4.param_description = "Search radius for normal estimation (cylinder fitting only)";
@@ -312,7 +348,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta4.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta4);
 
-    // 参数5: 法线距离权重 (圆柱, 依赖type=1)
+    // 鍙傛暟5: 娉曠嚎璺濈鏉冮噸 (鍦嗘煴, 渚濊禆type=1)
     ParamMetadata meta5;
     meta5.param_name = "normal distance weight";
     meta5.param_description = "Weight for the normal direction component in the distance metric [0, 1]";
@@ -322,7 +358,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta5.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta5);
 
-    // 参数6: 最小半径 (圆柱, 依赖type=1)
+    // 鍙傛暟6: 鏈€灏忓崐寰?(鍦嗘煴, 渚濊禆type=1)
     ParamMetadata meta6;
     meta6.param_name = "radius min";
     meta6.param_description = "Minimum allowed cylinder radius";
@@ -332,7 +368,7 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta6.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta6);
 
-    // 参数7: 最大半径 (圆柱, 依赖type=1)
+    // 鍙傛暟7: 鏈€澶у崐寰?(鍦嗘煴, 渚濊禆type=1)
     ParamMetadata meta7;
     meta7.param_name = "radius max";
     meta7.param_description = "Maximum allowed cylinder radius";
@@ -341,6 +377,16 @@ std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()
     meta7.range_constraint = RangeConstraint(0.0, 10000.0, 1.0);
     meta7.dependencies.push_back(ParamDependency(1, DEPENDS_ON_EQUALS, {"1"}));
     metadata_list.push_back(meta7);
+
+    for (size_t i = 0; i < metadata_list.size(); ++i) {
+        const std::string idx = std::to_string(i);
+        metadata_list[i].param_name = Tr(language_, "name." + idx);
+        metadata_list[i].param_description = Tr(language_, "desc." + idx);
+    }
+    if (metadata_list.size() > 1 && metadata_list[1].options_constraint.option_labels.size() >= 2) {
+        metadata_list[1].options_constraint.option_labels[0] = Tr(language_, "option.plane");
+        metadata_list[1].options_constraint.option_labels[1] = Tr(language_, "option.cylinder");
+    }
 
     for (size_t i = 0; i < metadata_list.size(); ++i) {
         metadata_list[i].param_group = (i < 2) ? PARAM_GROUP_BASIC : PARAM_GROUP_ADVANCED;
@@ -356,7 +402,10 @@ int HVCloudFit::get_algorithm_execute_status()
 
 std::string HVCloudFit::get_algorithm_error_message()
 {
-    return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+    return Tr(language_, error_msg);
 }
 
 long HVCloudFit::get_algorithm_use_time()
@@ -452,6 +501,23 @@ AlgorithmType HVCloudFit::get_algorithm_type()
     return AlgorithmType::PointCloudProcess;
 }
 
+void HVCloudFit::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVCloudFit::get_language() const
+{
+    return language_;
+}
+
+std::string HVCloudFit::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
     return new HVCloudFit();
 }
@@ -459,3 +525,8 @@ NodeEngine* CreateInstance() {
 std::string GetInstanceName() {
     return "Point cloud fit";
 }
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
+}
+

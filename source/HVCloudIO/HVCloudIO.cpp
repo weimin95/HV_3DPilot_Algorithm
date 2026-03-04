@@ -1,5 +1,24 @@
 ﻿#include "HVCloudIO.h"
 #include "HVUtils.h"
+#include "HVI18n.h"
+
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "点云读取", "Point cloud read" } },
+    { "input.cloud_path.name", { "点云路径", "point cloud path" } },
+    { "input.cloud_path.desc", { "点云文件路径", "Point cloud file path" } },
+    { "output.cloud.name", { "输出点云", "output cloud" } },
+    { "msg.read_success", { "点云读取成功", "Read point cloud success" } },
+    { "msg.read_failed", { "点云读取失败", "Read point cloud failed" } },
+    { "msg.param_set_failed", { "参数设置失败", "Param set failed" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
 
 HVCloudIO::HVCloudIO()
 {
@@ -28,12 +47,12 @@ int HVCloudIO::run()
     if (open3d::io::ReadPointCloud(cloud_path, *cloud))
     {
         execute_status = SUCCESS;
-        error_msg = "Read point cloud success";
+        error_msg = "msg.read_success";
     }
     else
     {
         execute_status = ALGORITHM_RUN_ERROR;
-        error_msg = "Read point cloud failed";
+        error_msg = "msg.read_failed";
     }
     cloudout = std::make_shared<HVPointCloud>(PointCloudConverter::FromOpen3D(*cloud));
     auto end = std::chrono::steady_clock::now();
@@ -46,7 +65,7 @@ int HVCloudIO::set_algorithm_params(const std::vector<void*>& params, const std:
 {
     if (params.size() < 1 || params[0] == nullptr)
     {
-        error_msg = "Param set failed";
+        error_msg = "msg.param_set_failed";
         return INVALID_PARAMS_NUM;
     }
     cloud_path = cast_param<std::string>(params, 0);
@@ -72,12 +91,12 @@ std::vector<int> HVCloudIO::get_algorithm_output_params_type()
 
 std::vector<std::string> HVCloudIO::get_algorithm_input_params_name()
 {
-	return { "file path" };
+	return { Tr(language_, "input.cloud_path.name") };
 }
 
 std::vector<std::string> HVCloudIO::get_algorithm_output_params_name()
 {
-	return { "output point cloud" };
+	return { Tr(language_, "output.cloud.name") };
 }
 
 std::vector<bool> HVCloudIO::get_algorithm_input_params_bindable()
@@ -91,8 +110,8 @@ std::vector<ParamMetadata> HVCloudIO::get_algorithm_input_params_metadata()
 
     // 参数0: 点云文件路径 (文件路径约束)
     ParamMetadata meta0;
-    meta0.param_name = "file path";
-    meta0.param_description = "点云文件路径";
+    meta0.param_name = Tr(language_, "input.cloud_path.name");
+    meta0.param_description = Tr(language_, "input.cloud_path.desc");
     meta0.param_type = HV_STRING;
     meta0.constraint_type = CONSTRAINT_FILE_PATH;
     meta0.file_filter = "*.pcd;*.ply;*.xyz;*.pts";
@@ -108,7 +127,10 @@ int HVCloudIO::get_algorithm_execute_status()
 
 std::string HVCloudIO::get_algorithm_error_message()
 {
-    return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+    return Tr(language_, error_msg);
 }
 
 long HVCloudIO::get_algorithm_use_time()
@@ -200,6 +222,23 @@ AlgorithmType HVCloudIO::get_algorithm_type()
     return AlgorithmType::Capture;
 }
 
+void HVCloudIO::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVCloudIO::get_language() const
+{
+    return language_;
+}
+
+std::string HVCloudIO::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
     // 每一个 DLL 内部返回自己具体的实现类
     return new HVCloudIO();
@@ -207,4 +246,8 @@ NodeEngine* CreateInstance() {
 
 std::string GetInstanceName() {
     return "Point cloud read"; // 告知主程序此 DLL 代表的类型
+}
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
 }

@@ -1,5 +1,41 @@
 ﻿#include "HVCloudPreprocess.h"
 #include "HVUtils.h"
+#include "HVI18n.h"
+
+namespace {
+
+const hvi18n::Dictionary kTexts = {
+    { "algorithm.display", { "点云预处理", "Point cloud preprocess" } },
+    { "input.cloud.name", { "输入点云", "input cloud" } },
+    { "input.type.name", { "预处理类型", "preprocess type" } },
+    { "input.k.name", { "k", "k" } },
+    { "input.nsigma.name", { "nSigma", "nSigma" } },
+    { "input.radius.name", { "radius", "radius" } },
+    { "input.points_threshold.name", { "点数阈值", "points threshold" } },
+    { "input.voxel_size.name", { "体素大小", "voxel size" } },
+    { "output.cloud.name", { "输出点云", "output point cloud" } },
+    { "input.cloud.desc", { "输入点云数据", "Input point cloud" } },
+    { "input.type.desc", { "预处理算法类型", "Preprocess algorithm type" } },
+    { "input.k.desc", { "SOR滤波邻域点个数", "SOR neighbor count" } },
+    { "input.nsigma.desc", { "SOR滤波标准差倍数", "SOR sigma multiplier" } },
+    { "input.radius.desc", { "半径滤波搜索半径", "Radius search radius" } },
+    { "input.points_threshold.desc", { "半径滤波邻域点阈值", "Radius neighbor threshold" } },
+    { "input.voxel_size.desc", { "体素大小", "Voxel size" } },
+    { "option.sor", { "统计滤波", "SOR" } },
+    { "option.radius", { "半径滤波", "Radius" } },
+    { "option.voxel", { "体素下采样", "Voxel" } },
+    { "msg.input_null", { "输入点云为空", "Input cloud is null" } },
+    { "msg.statistic_success", { "统计滤波成功", "Statistic filter success" } },
+    { "msg.radius_success", { "半径滤波成功", "Radius filter success" } },
+    { "msg.voxel_success", { "体素下采样成功", "Voxel downsample success" } },
+    { "msg.unsupported", { "不支持的滤波类型", "Unsupport filter" } }
+};
+
+std::string Tr(int language, const std::string& key) {
+    return hvi18n::Translate(kTexts, key, language);
+}
+
+}  // namespace
 
 HVCloudPreprocess::HVCloudPreprocess()
 {
@@ -27,7 +63,7 @@ int HVCloudPreprocess::run()
     if (!inputCloud)
     {
         execute_status = ALGORITHM_RUN_ERROR;
-        error_msg = "Input cloud is null";
+        error_msg = "msg.input_null";
         return ALGORITHM_RUN_ERROR;
     }
 
@@ -40,7 +76,7 @@ int HVCloudPreprocess::run()
         // sor filter
         auto res = cloudIn->RemoveStatisticalOutliers(k, nSigma);
         cloudOut = std::get<0>(res);
-        error_msg = "Statistic filter success";
+        error_msg = "msg.statistic_success";
     }
     break;
     case 1:
@@ -48,19 +84,19 @@ int HVCloudPreprocess::run()
         // radius filter 
         auto res = cloudIn->RemoveRadiusOutliers(pointsThrehold, radius);
         cloudOut = std::get<0>(res);
-        error_msg = "Radius filter success";
+        error_msg = "msg.radius_success";
     }
     break;
     case 2:
     {
         // voxel filter
         cloudOut = cloudIn->VoxelDownSample(voxelSize);
-        error_msg = "Voxel downsample success";
+        error_msg = "msg.voxel_success";
     }
     break;
     default:
     {
-        error_msg = "Unsupport filter";
+        error_msg = "msg.unsupported";
         execute_status = ALGORITHM_RUN_ERROR;
         return ALGORITHM_RUN_ERROR;
     } 
@@ -156,12 +192,20 @@ std::vector<int> HVCloudPreprocess::get_algorithm_output_params_type()
 
 std::vector<std::string> HVCloudPreprocess::get_algorithm_input_params_name()
 {
-    return { "input cloud", "preprocess type", "k", "nSigma", "radius", "points threshold", "voxel size" };
+    return {
+        Tr(language_, "input.cloud.name"),
+        Tr(language_, "input.type.name"),
+        Tr(language_, "input.k.name"),
+        Tr(language_, "input.nsigma.name"),
+        Tr(language_, "input.radius.name"),
+        Tr(language_, "input.points_threshold.name"),
+        Tr(language_, "input.voxel_size.name")
+    };
 }
 
 std::vector<std::string> HVCloudPreprocess::get_algorithm_output_params_name()
 {
-    return { "output point cloud" };
+    return { Tr(language_, "output.cloud.name") };
 }
 
 std::vector<bool> HVCloudPreprocess::get_algorithm_input_params_bindable()
@@ -175,28 +219,28 @@ std::vector<ParamMetadata> HVCloudPreprocess::get_algorithm_input_params_metadat
 
     // 参数0: 输入点云 (可绑定，无约束)
     ParamMetadata meta0;
-    meta0.param_name = "input cloud";
-    meta0.param_description = "输入点云数据";
+    meta0.param_name = Tr(language_, "input.cloud.name");
+    meta0.param_description = Tr(language_, "input.cloud.desc");
     meta0.param_type = HV_POINTCLOUD;
     meta0.constraint_type = CONSTRAINT_NONE;
     metadata_list.push_back(meta0);
 
     // 参数1: 预处理类型 (选项约束)
     ParamMetadata meta1;
-    meta1.param_name = "preprocess type";
-    meta1.param_description = "预处理算法类型";
+    meta1.param_name = Tr(language_, "input.type.name");
+    meta1.param_description = Tr(language_, "input.type.desc");
     meta1.param_type = HV_INT;
     meta1.constraint_type = CONSTRAINT_OPTIONS;
-    meta1.options_constraint.AddOption(0, "SOR (统计滤波)");
-    meta1.options_constraint.AddOption(1, "Radius (半径滤波)");
-    meta1.options_constraint.AddOption(2, "Voxel (体素下采样)");
+    meta1.options_constraint.AddOption(0, Tr(language_, "option.sor"));
+    meta1.options_constraint.AddOption(1, Tr(language_, "option.radius"));
+    meta1.options_constraint.AddOption(2, Tr(language_, "option.voxel"));
     meta1.options_constraint.default_index = 0;
     metadata_list.push_back(meta1);
 
     // 参数2: k值 (范围约束，SOR滤波参数，依赖type=0)
     ParamMetadata meta2;
-    meta2.param_name = "k";
-    meta2.param_description = "SOR滤波邻域点个数";
+    meta2.param_name = Tr(language_, "input.k.name");
+    meta2.param_description = Tr(language_, "input.k.desc");
     meta2.param_type = HV_INT;
     meta2.constraint_type = CONSTRAINT_RANGE;
     meta2.range_constraint = RangeConstraint(1, 100, 30);
@@ -205,8 +249,8 @@ std::vector<ParamMetadata> HVCloudPreprocess::get_algorithm_input_params_metadat
 
     // 参数3: nSigma (范围约束，SOR滤波参数，依赖type=0)
     ParamMetadata meta3;
-    meta3.param_name = "nSigma";
-    meta3.param_description = "SOR滤波标准差倍数";
+    meta3.param_name = Tr(language_, "input.nsigma.name");
+    meta3.param_description = Tr(language_, "input.nsigma.desc");
     meta3.param_type = HV_FLOAT;
     meta3.constraint_type = CONSTRAINT_RANGE;
     meta3.range_constraint = RangeConstraint(0.1, 10.0, 1.5);
@@ -215,8 +259,8 @@ std::vector<ParamMetadata> HVCloudPreprocess::get_algorithm_input_params_metadat
 
     // 参数4: radius (范围约束，半径滤波参数，依赖type=1)
     ParamMetadata meta4;
-    meta4.param_name = "radius";
-    meta4.param_description = "半径滤波搜索半径";
+    meta4.param_name = Tr(language_, "input.radius.name");
+    meta4.param_description = Tr(language_, "input.radius.desc");
     meta4.param_type = HV_FLOAT;
     meta4.constraint_type = CONSTRAINT_RANGE;
     meta4.range_constraint = RangeConstraint(0.01, 100.0, 1.0);
@@ -225,8 +269,8 @@ std::vector<ParamMetadata> HVCloudPreprocess::get_algorithm_input_params_metadat
 
     // 参数5: pointsThreshold (范围约束，半径滤波参数，依赖type=1)
     ParamMetadata meta5;
-    meta5.param_name = "points threshold";
-    meta5.param_description = "半径滤波邻域点阈值";
+    meta5.param_name = Tr(language_, "input.points_threshold.name");
+    meta5.param_description = Tr(language_, "input.points_threshold.desc");
     meta5.param_type = HV_INT;
     meta5.constraint_type = CONSTRAINT_RANGE;
     meta5.range_constraint = RangeConstraint(1, 1000, 100);
@@ -235,8 +279,8 @@ std::vector<ParamMetadata> HVCloudPreprocess::get_algorithm_input_params_metadat
 
     // 参数6: voxelSize (范围约束，体素下采样参数，依赖type=2)
     ParamMetadata meta6;
-    meta6.param_name = "voxel size";
-    meta6.param_description = "体素大小";
+    meta6.param_name = Tr(language_, "input.voxel_size.name");
+    meta6.param_description = Tr(language_, "input.voxel_size.desc");
     meta6.param_type = HV_FLOAT;
     meta6.constraint_type = CONSTRAINT_RANGE;
     meta6.range_constraint = RangeConstraint(0.001, 100.0, 1.0);
@@ -257,7 +301,10 @@ int HVCloudPreprocess::get_algorithm_execute_status()
 
 std::string HVCloudPreprocess::get_algorithm_error_message()
 {
-    return error_msg;
+    if (error_msg.empty()) {
+        return "";
+    }
+    return Tr(language_, error_msg);
 }
 
 long HVCloudPreprocess::get_algorithm_use_time()
@@ -374,6 +421,23 @@ AlgorithmType HVCloudPreprocess::get_algorithm_type()
     return AlgorithmType::PointCloudProcess;
 }
 
+void HVCloudPreprocess::set_language(int language)
+{
+    if (hvi18n::IsSupportedLanguage(language)) {
+        language_ = language;
+    }
+}
+
+int HVCloudPreprocess::get_language() const
+{
+    return language_;
+}
+
+std::string HVCloudPreprocess::get_algorithm_display_name()
+{
+    return Tr(language_, "algorithm.display");
+}
+
 NodeEngine* CreateInstance() {
     // 每一个 DLL 内部返回自己具体的实现类
     return new HVCloudPreprocess();
@@ -381,4 +445,8 @@ NodeEngine* CreateInstance() {
 
 std::string GetInstanceName() {
     return "Point cloud preprocess"; // 告知主程序此 DLL 代表的类型
+}
+
+extern "C" __declspec(dllexport) int GetNodeEngineAbiVersion() {
+    return NODE_ENGINE_ABI_VERSION;
 }
