@@ -105,7 +105,8 @@ std::vector<std::string> HVImageReader::get_algorithm_output_params_name()
 
 std::vector<bool> HVImageReader::get_algorithm_input_params_bindable()
 {
-    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
+    // Used as the default UI input mode hint, not as a hard binding restriction.
+    return { false };
 }
 
 std::vector<ParamMetadata> HVImageReader::get_algorithm_input_params_metadata()

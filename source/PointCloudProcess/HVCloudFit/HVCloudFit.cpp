@@ -292,7 +292,8 @@ std::vector<std::string> HVCloudFit::get_algorithm_output_params_name()
 
 std::vector<bool> HVCloudFit::get_algorithm_input_params_bindable()
 {
-    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
+    // Used as the default UI input mode hint, not as a hard binding restriction.
+    return { true, false, false, false, false, false, false, false };
 }
 
 std::vector<ParamMetadata> HVCloudFit::get_algorithm_input_params_metadata()

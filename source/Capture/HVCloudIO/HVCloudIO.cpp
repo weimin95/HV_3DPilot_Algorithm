@@ -101,7 +101,8 @@ std::vector<std::string> HVCloudIO::get_algorithm_output_params_name()
 
 std::vector<bool> HVCloudIO::get_algorithm_input_params_bindable()
 {
-    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
+    // Used as the default UI input mode hint, not as a hard binding restriction.
+    return { false };
 }
 
 std::vector<ParamMetadata> HVCloudIO::get_algorithm_input_params_metadata()

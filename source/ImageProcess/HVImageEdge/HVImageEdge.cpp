@@ -148,7 +148,8 @@ std::vector<std::string> HVImageEdge::get_algorithm_output_params_name()
 
 std::vector<bool> HVImageEdge::get_algorithm_input_params_bindable()
 {
-    return std::vector<bool>(get_algorithm_input_params_type().size(), true);
+    // Used as the default UI input mode hint, not as a hard binding restriction.
+    return { true, false, false };
 }
 
 std::vector<ParamMetadata> HVImageEdge::get_algorithm_input_params_metadata()
