@@ -138,6 +138,6 @@ public:
 
 // ROI coordinates use image pixels with the origin at the top-left corner.
 // Rotated rectangle angles are clockwise-positive in image coordinates.
-bool IsValidRoiInfo(const HVRoiInfo& roi);
-bool BuildRoiMask(const HVRoiInfo& roi, int image_width, int image_height, cv::Mat& mask);
-bool BuildMaskedImageFromRoi(const HVRoiInfo& roi, const ImageDataInfo2D& src_image, ImageDataInfo2D& out_image);
+bool IsValidRoiInfo(const HVGeometryInfo& roi);
+bool BuildRoiMask(const HVGeometryInfo& roi, int image_width, int image_height, cv::Mat& mask);
+bool BuildMaskedImageFromRoi(const HVGeometryInfo& roi, const ImageDataInfo2D& src_image, ImageDataInfo2D& out_image);

@@ -236,7 +236,7 @@ bool IsFiniteDouble(double value) {
     return std::isfinite(value) != 0;
 }
 
-bool IsFinitePoint(const HVPoint2D& point) {
+bool IsFinitePoint(const HVPoint& point) {
     return IsFiniteDouble(point.x) && IsFiniteDouble(point.y);
 }
 
@@ -247,14 +247,14 @@ void MarkMaskPixel(int x, int y, cv::Mat& mask) {
     mask.at<unsigned char>(y, x) = 255;
 }
 
-void RasterizePoint(const HVPoint2D& point, cv::Mat& mask) {
+void RasterizePoint(const HVPoint& point, cv::Mat& mask) {
     MarkMaskPixel(
         static_cast<int>(std::lround(point.x)),
         static_cast<int>(std::lround(point.y)),
         mask);
 }
 
-void RasterizeLine(const HVLineSegment2D& line_segment, cv::Mat& mask) {
+void RasterizeLine(const HVLineSegment& line_segment, cv::Mat& mask) {
     const cv::Point start(
         static_cast<int>(std::lround(line_segment.start_point_.x)),
         static_cast<int>(std::lround(line_segment.start_point_.y)));
@@ -264,7 +264,7 @@ void RasterizeLine(const HVLineSegment2D& line_segment, cv::Mat& mask) {
     cv::line(mask, start, end, cv::Scalar(255), 1, cv::LINE_8);
 }
 
-void RasterizeAxisAlignedRect(const HVRect2D& rect, cv::Mat& mask) {
+void RasterizeAxisAlignedRect(const HVRect& rect, cv::Mat& mask) {
     for (int row = 0; row < mask.rows; ++row) {
         const double pixel_center_y = static_cast<double>(row) + 0.5;
         if (pixel_center_y < rect.y_ || pixel_center_y >= rect.y_ + rect.height_) {
@@ -280,7 +280,7 @@ void RasterizeAxisAlignedRect(const HVRect2D& rect, cv::Mat& mask) {
     }
 }
 
-void RasterizeRotatedRect(const HVRotatedRect2D& rect, cv::Mat& mask) {
+void RasterizeRotatedRect(const HVRotatedRect& rect, cv::Mat& mask) {
     const double angle_rad = rect.angle_deg_ * std::acos(-1.0) / 180.0;
     const double cos_angle = std::cos(angle_rad);
     const double sin_angle = std::sin(angle_rad);
@@ -311,33 +311,33 @@ void RasterizeRotatedRect(const HVRotatedRect2D& rect, cv::Mat& mask) {
 
 } // namespace
 
-bool IsValidRoiInfo(const HVRoiInfo& roi) {
+bool IsValidRoiInfo(const HVGeometryInfo& roi) {
     switch (roi.shape_type_) {
-    case HVRoiShapeType::Point:
-        return IsFinitePoint(roi.geometry_2d_.point_);
-    case HVRoiShapeType::LineSegment:
-        return IsFinitePoint(roi.geometry_2d_.line_segment_.start_point_) &&
-            IsFinitePoint(roi.geometry_2d_.line_segment_.end_point_);
-    case HVRoiShapeType::Rectangle:
-        return IsFiniteDouble(roi.geometry_2d_.rect_.x_) &&
-            IsFiniteDouble(roi.geometry_2d_.rect_.y_) &&
-            IsFiniteDouble(roi.geometry_2d_.rect_.width_) &&
-            IsFiniteDouble(roi.geometry_2d_.rect_.height_) &&
-            roi.geometry_2d_.rect_.width_ > 0.0 &&
-            roi.geometry_2d_.rect_.height_ > 0.0;
-    case HVRoiShapeType::RotatedRectangle:
-        return IsFinitePoint(roi.geometry_2d_.rotated_rect_.center_) &&
-            IsFiniteDouble(roi.geometry_2d_.rotated_rect_.width_) &&
-            IsFiniteDouble(roi.geometry_2d_.rotated_rect_.height_) &&
-            IsFiniteDouble(roi.geometry_2d_.rotated_rect_.angle_deg_) &&
-            roi.geometry_2d_.rotated_rect_.width_ > 0.0 &&
-            roi.geometry_2d_.rotated_rect_.height_ > 0.0;
+    case HVGeometryShapeType::Point:
+        return IsFinitePoint(roi.AsPoint());
+    case HVGeometryShapeType::LineSegment:
+        return IsFinitePoint(roi.AsLineSegment().start_point_) &&
+            IsFinitePoint(roi.AsLineSegment().end_point_);
+    case HVGeometryShapeType::Rectangle:
+        return IsFiniteDouble(roi.AsRect().x_) &&
+            IsFiniteDouble(roi.AsRect().y_) &&
+            IsFiniteDouble(roi.AsRect().width_) &&
+            IsFiniteDouble(roi.AsRect().height_) &&
+            roi.AsRect().width_ > 0.0 &&
+            roi.AsRect().height_ > 0.0;
+    case HVGeometryShapeType::RotatedRectangle:
+        return IsFinitePoint(roi.AsRotatedRect().center_) &&
+            IsFiniteDouble(roi.AsRotatedRect().width_) &&
+            IsFiniteDouble(roi.AsRotatedRect().height_) &&
+            IsFiniteDouble(roi.AsRotatedRect().angle_deg_) &&
+            roi.AsRotatedRect().width_ > 0.0 &&
+            roi.AsRotatedRect().height_ > 0.0;
     default:
         return false;
     }
 }
 
-bool BuildRoiMask(const HVRoiInfo& roi, int image_width, int image_height, cv::Mat& mask) {
+bool BuildRoiMask(const HVGeometryInfo& roi, int image_width, int image_height, cv::Mat& mask) {
     if (!IsValidRoiInfo(roi) || image_width <= 0 || image_height <= 0) {
         mask.release();
         return false;
@@ -345,17 +345,17 @@ bool BuildRoiMask(const HVRoiInfo& roi, int image_width, int image_height, cv::M
 
     mask = cv::Mat::zeros(image_height, image_width, CV_8UC1);
     switch (roi.shape_type_) {
-    case HVRoiShapeType::Point:
-        RasterizePoint(roi.geometry_2d_.point_, mask);
+    case HVGeometryShapeType::Point:
+        RasterizePoint(roi.AsPoint(), mask);
         return true;
-    case HVRoiShapeType::LineSegment:
-        RasterizeLine(roi.geometry_2d_.line_segment_, mask);
+    case HVGeometryShapeType::LineSegment:
+        RasterizeLine(roi.AsLineSegment(), mask);
         return true;
-    case HVRoiShapeType::Rectangle:
-        RasterizeAxisAlignedRect(roi.geometry_2d_.rect_, mask);
+    case HVGeometryShapeType::Rectangle:
+        RasterizeAxisAlignedRect(roi.AsRect(), mask);
         return true;
-    case HVRoiShapeType::RotatedRectangle:
-        RasterizeRotatedRect(roi.geometry_2d_.rotated_rect_, mask);
+    case HVGeometryShapeType::RotatedRectangle:
+        RasterizeRotatedRect(roi.AsRotatedRect(), mask);
         return true;
     default:
         mask.release();
@@ -363,7 +363,7 @@ bool BuildRoiMask(const HVRoiInfo& roi, int image_width, int image_height, cv::M
     }
 }
 
-bool BuildMaskedImageFromRoi(const HVRoiInfo& roi, const ImageDataInfo2D& src_image, ImageDataInfo2D& out_image) {
+bool BuildMaskedImageFromRoi(const HVGeometryInfo& roi, const ImageDataInfo2D& src_image, ImageDataInfo2D& out_image) {
     if (src_image.empty()) {
         out_image = ImageDataInfo2D();
         return false;
