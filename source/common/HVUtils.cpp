@@ -312,10 +312,6 @@ void RasterizeRotatedRect(const HVRotatedRect2D& rect, cv::Mat& mask) {
 } // namespace
 
 bool IsValidRoiInfo(const HVRoiInfo& roi) {
-    if (roi.dimension_ != HVRoiDimension::ROI_2D) {
-        return false;
-    }
-
     switch (roi.shape_type_) {
     case HVRoiShapeType::Point:
         return IsFinitePoint(roi.geometry_2d_.point_);
