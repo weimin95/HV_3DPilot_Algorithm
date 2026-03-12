@@ -1,5 +1,7 @@
 ﻿#include "HVUtils.h"
 
+#include <cmath>
+
 #pragma region Image Conversion
 // 将 ImageDataInfo2D 转换为 cv::Mat (深拷贝)
 cv::Mat ImageConverter::ToMat(const ImageDataInfo2D& input) {
@@ -227,3 +229,159 @@ std::shared_ptr<open3d::geometry::PointCloud> PointCloudConverter::PCLToOpen3D(c
     return output;
 }
 #pragma endregion
+
+namespace {
+
+bool IsFiniteDouble(double value) {
+    return std::isfinite(value) != 0;
+}
+
+bool IsFinitePoint(const HVPoint2D& point) {
+    return IsFiniteDouble(point.x) && IsFiniteDouble(point.y);
+}
+
+void MarkMaskPixel(int x, int y, cv::Mat& mask) {
+    if (x < 0 || y < 0 || x >= mask.cols || y >= mask.rows) {
+        return;
+    }
+    mask.at<unsigned char>(y, x) = 255;
+}
+
+void RasterizePoint(const HVPoint2D& point, cv::Mat& mask) {
+    MarkMaskPixel(
+        static_cast<int>(std::lround(point.x)),
+        static_cast<int>(std::lround(point.y)),
+        mask);
+}
+
+void RasterizeLine(const HVLineSegment2D& line_segment, cv::Mat& mask) {
+    const cv::Point start(
+        static_cast<int>(std::lround(line_segment.start_point_.x)),
+        static_cast<int>(std::lround(line_segment.start_point_.y)));
+    const cv::Point end(
+        static_cast<int>(std::lround(line_segment.end_point_.x)),
+        static_cast<int>(std::lround(line_segment.end_point_.y)));
+    cv::line(mask, start, end, cv::Scalar(255), 1, cv::LINE_8);
+}
+
+void RasterizeAxisAlignedRect(const HVRect2D& rect, cv::Mat& mask) {
+    for (int row = 0; row < mask.rows; ++row) {
+        const double pixel_center_y = static_cast<double>(row) + 0.5;
+        if (pixel_center_y < rect.y_ || pixel_center_y >= rect.y_ + rect.height_) {
+            continue;
+        }
+
+        for (int col = 0; col < mask.cols; ++col) {
+            const double pixel_center_x = static_cast<double>(col) + 0.5;
+            if (pixel_center_x >= rect.x_ && pixel_center_x < rect.x_ + rect.width_) {
+                mask.at<unsigned char>(row, col) = 255;
+            }
+        }
+    }
+}
+
+void RasterizeRotatedRect(const HVRotatedRect2D& rect, cv::Mat& mask) {
+    const double angle_rad = rect.angle_deg_ * std::acos(-1.0) / 180.0;
+    const double cos_angle = std::cos(angle_rad);
+    const double sin_angle = std::sin(angle_rad);
+    const double half_width = rect.width_ * 0.5;
+    const double half_height = rect.height_ * 0.5;
+    const double sample_bias = 1e-9;
+
+    for (int row = 0; row < mask.rows; ++row) {
+        const double pixel_center_y = static_cast<double>(row) + 0.5 + sample_bias;
+        for (int col = 0; col < mask.cols; ++col) {
+            const double pixel_center_x = static_cast<double>(col) + 0.5 + sample_bias;
+            const double dx = pixel_center_x - rect.center_.x;
+            const double dy = pixel_center_y - rect.center_.y;
+
+            // Project the pixel center back into the rectangle-local frame
+            // before testing axis-aligned bounds in that local frame.
+            const double local_x = dx * cos_angle + dy * sin_angle;
+            const double local_y = -dx * sin_angle + dy * cos_angle;
+            if (local_x >= -half_width &&
+                local_x < half_width &&
+                local_y >= -half_height &&
+                local_y < half_height) {
+                mask.at<unsigned char>(row, col) = 255;
+            }
+        }
+    }
+}
+
+} // namespace
+
+bool IsValidRoiInfo(const HVRoiInfo& roi) {
+    if (roi.dimension_ != HVRoiDimension::ROI_2D) {
+        return false;
+    }
+
+    switch (roi.shape_type_) {
+    case HVRoiShapeType::Point:
+        return IsFinitePoint(roi.geometry_2d_.point_);
+    case HVRoiShapeType::LineSegment:
+        return IsFinitePoint(roi.geometry_2d_.line_segment_.start_point_) &&
+            IsFinitePoint(roi.geometry_2d_.line_segment_.end_point_);
+    case HVRoiShapeType::Rectangle:
+        return IsFiniteDouble(roi.geometry_2d_.rect_.x_) &&
+            IsFiniteDouble(roi.geometry_2d_.rect_.y_) &&
+            IsFiniteDouble(roi.geometry_2d_.rect_.width_) &&
+            IsFiniteDouble(roi.geometry_2d_.rect_.height_) &&
+            roi.geometry_2d_.rect_.width_ > 0.0 &&
+            roi.geometry_2d_.rect_.height_ > 0.0;
+    case HVRoiShapeType::RotatedRectangle:
+        return IsFinitePoint(roi.geometry_2d_.rotated_rect_.center_) &&
+            IsFiniteDouble(roi.geometry_2d_.rotated_rect_.width_) &&
+            IsFiniteDouble(roi.geometry_2d_.rotated_rect_.height_) &&
+            IsFiniteDouble(roi.geometry_2d_.rotated_rect_.angle_deg_) &&
+            roi.geometry_2d_.rotated_rect_.width_ > 0.0 &&
+            roi.geometry_2d_.rotated_rect_.height_ > 0.0;
+    default:
+        return false;
+    }
+}
+
+bool BuildRoiMask(const HVRoiInfo& roi, int image_width, int image_height, cv::Mat& mask) {
+    if (!IsValidRoiInfo(roi) || image_width <= 0 || image_height <= 0) {
+        mask.release();
+        return false;
+    }
+
+    mask = cv::Mat::zeros(image_height, image_width, CV_8UC1);
+    switch (roi.shape_type_) {
+    case HVRoiShapeType::Point:
+        RasterizePoint(roi.geometry_2d_.point_, mask);
+        return true;
+    case HVRoiShapeType::LineSegment:
+        RasterizeLine(roi.geometry_2d_.line_segment_, mask);
+        return true;
+    case HVRoiShapeType::Rectangle:
+        RasterizeAxisAlignedRect(roi.geometry_2d_.rect_, mask);
+        return true;
+    case HVRoiShapeType::RotatedRectangle:
+        RasterizeRotatedRect(roi.geometry_2d_.rotated_rect_, mask);
+        return true;
+    default:
+        mask.release();
+        return false;
+    }
+}
+
+bool BuildMaskedImageFromRoi(const HVRoiInfo& roi, const ImageDataInfo2D& src_image, ImageDataInfo2D& out_image) {
+    if (src_image.empty()) {
+        out_image = ImageDataInfo2D();
+        return false;
+    }
+
+    cv::Mat mask;
+    if (!BuildRoiMask(roi, src_image.width, src_image.height, mask)) {
+        out_image = ImageDataInfo2D();
+        return false;
+    }
+
+    const cv::Mat src = ImageConverter::ToMat(src_image);
+    cv::Mat masked = cv::Mat::zeros(src.size(), src.type());
+    src.copyTo(masked, mask);
+    out_image = ImageConverter::FromMat(masked);
+    return true;
+}
