@@ -144,12 +144,20 @@ bool BuildMaskedImageFromRoi(const HVGeometryInfo& roi, const ImageDataInfo2D& s
 
 // 3D ROI 当前只支持 Box / RotatedBox 两种几何。
 // 传入 2D 图形时直接返回 false。
-bool CropPclPointCloudByGeometry(
+template <typename PointCloudT>
+bool CropPointCloudByGeometry(
+    const HVGeometryInfo& geometry,
+    const PointCloudT& input,
+    PointCloudT& output);
+
+template <>
+bool CropPointCloudByGeometry<pcl::PointCloud<pcl::PointXYZ>>(
     const HVGeometryInfo& geometry,
     const pcl::PointCloud<pcl::PointXYZ>& input,
     pcl::PointCloud<pcl::PointXYZ>& output);
 
-bool CropOpen3DPointCloudByGeometry(
+template <>
+bool CropPointCloudByGeometry<open3d::geometry::PointCloud>(
     const HVGeometryInfo& geometry,
     const open3d::geometry::PointCloud& input,
     open3d::geometry::PointCloud& output);

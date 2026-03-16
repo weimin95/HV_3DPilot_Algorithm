@@ -463,7 +463,8 @@ bool BuildMaskedImageFromRoi(const HVGeometryInfo& roi, const ImageDataInfo2D& s
     return true;
 }
 
-bool CropPclPointCloudByGeometry(
+template <>
+bool CropPointCloudByGeometry<pcl::PointCloud<pcl::PointXYZ>>(
     const HVGeometryInfo& geometry,
     const pcl::PointCloud<pcl::PointXYZ>& input,
     pcl::PointCloud<pcl::PointXYZ>& output) {
@@ -490,7 +491,8 @@ bool CropPclPointCloudByGeometry(
     return true;
 }
 
-bool CropOpen3DPointCloudByGeometry(
+template <>
+bool CropPointCloudByGeometry<open3d::geometry::PointCloud>(
     const HVGeometryInfo& geometry,
     const open3d::geometry::PointCloud& input,
     open3d::geometry::PointCloud& output) {
