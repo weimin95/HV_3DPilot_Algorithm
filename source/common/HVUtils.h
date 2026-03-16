@@ -136,8 +136,20 @@ public:
     static std::shared_ptr<open3d::geometry::PointCloud> PCLToOpen3D(const pcl::PointCloud<pcl::PointXYZ>& input);
 };
 
-// ROI coordinates use image pixels with the origin at the top-left corner.
-// Rotated rectangle angles are clockwise-positive in image coordinates.
+// ROI 坐标中，2D 几何使用图像像素坐标，原点在左上角。
+// 旋转矩形角度在图像坐标系下按顺时针为正。
 bool IsValidRoiInfo(const HVGeometryInfo& roi);
 bool BuildRoiMask(const HVGeometryInfo& roi, int image_width, int image_height, cv::Mat& mask);
 bool BuildMaskedImageFromRoi(const HVGeometryInfo& roi, const ImageDataInfo2D& src_image, ImageDataInfo2D& out_image);
+
+// 3D ROI 当前只支持 Box / RotatedBox 两种几何。
+// 传入 2D 图形时直接返回 false。
+bool CropPclPointCloudByGeometry(
+    const HVGeometryInfo& geometry,
+    const pcl::PointCloud<pcl::PointXYZ>& input,
+    pcl::PointCloud<pcl::PointXYZ>& output);
+
+bool CropOpen3DPointCloudByGeometry(
+    const HVGeometryInfo& geometry,
+    const open3d::geometry::PointCloud& input,
+    open3d::geometry::PointCloud& output);

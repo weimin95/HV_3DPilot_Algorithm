@@ -240,6 +240,74 @@ bool IsFinitePoint(const HVPoint& point) {
     return IsFiniteDouble(point.x) && IsFiniteDouble(point.y);
 }
 
+bool IsFinitePoint3D(const HVPoint3D& point) {
+    return IsFiniteDouble(point.x) &&
+        IsFiniteDouble(point.y) &&
+        IsFiniteDouble(point.z);
+}
+
+bool IsFiniteOrientation3D(const HVOrientation3D& orientation) {
+    return IsFiniteDouble(orientation.roll_deg_) &&
+        IsFiniteDouble(orientation.pitch_deg_) &&
+        IsFiniteDouble(orientation.yaw_deg_);
+}
+
+bool IsPointInsideBox(const HVBox& box, double x, double y, double z) {
+    const HVPoint3D min_corner = box.MinCorner();
+    const HVPoint3D max_corner = box.MaxCorner();
+    return x >= min_corner.x && x <= max_corner.x &&
+        y >= min_corner.y && y <= max_corner.y &&
+        z >= min_corner.z && z <= max_corner.z;
+}
+
+bool IsPointInsideRotatedBox(const HVRotatedBox& box, double x, double y, double z) {
+    const double roll_rad = box.orientation_.roll_deg_ * std::acos(-1.0) / 180.0;
+    const double pitch_rad = box.orientation_.pitch_deg_ * std::acos(-1.0) / 180.0;
+    const double yaw_rad = box.orientation_.yaw_deg_ * std::acos(-1.0) / 180.0;
+    const double cos_roll = std::cos(roll_rad);
+    const double sin_roll = std::sin(roll_rad);
+    const double cos_pitch = std::cos(pitch_rad);
+    const double sin_pitch = std::sin(pitch_rad);
+    const double cos_yaw = std::cos(yaw_rad);
+    const double sin_yaw = std::sin(yaw_rad);
+
+    const double dx = x - box.center_.x;
+    const double dy = y - box.center_.y;
+    const double dz = z - box.center_.z;
+
+    // 逆变换顺序与 HVRotatedBox::Vertices() 的正向 roll->pitch->yaw 保持一致。
+    const double undo_yaw_x = dx * cos_yaw + dy * sin_yaw;
+    const double undo_yaw_y = -dx * sin_yaw + dy * cos_yaw;
+    const double undo_pitch_x = undo_yaw_x * cos_pitch - dz * sin_pitch;
+    const double undo_pitch_z = undo_yaw_x * sin_pitch + dz * cos_pitch;
+    const double local_y = undo_yaw_y * cos_roll + undo_pitch_z * sin_roll;
+    const double local_z = -undo_yaw_y * sin_roll + undo_pitch_z * cos_roll;
+
+    const double half_length = box.length_ * 0.5;
+    const double half_width = box.width_ * 0.5;
+    const double half_height = box.height_ * 0.5;
+
+    return undo_pitch_x >= -half_length && undo_pitch_x <= half_length &&
+        local_y >= -half_width && local_y <= half_width &&
+        local_z >= -half_height && local_z <= half_height;
+}
+
+bool IsSupportedPointCloudGeometry(const HVGeometryInfo& geometry) {
+    return geometry.shape_type_ == HVGeometryShapeType::Box ||
+        geometry.shape_type_ == HVGeometryShapeType::RotatedBox;
+}
+
+bool IsPointInsideGeometry(const HVGeometryInfo& geometry, double x, double y, double z) {
+    switch (geometry.shape_type_) {
+    case HVGeometryShapeType::Box:
+        return IsPointInsideBox(geometry.AsBox(), x, y, z);
+    case HVGeometryShapeType::RotatedBox:
+        return IsPointInsideRotatedBox(geometry.AsRotatedBox(), x, y, z);
+    default:
+        return false;
+    }
+}
+
 void MarkMaskPixel(int x, int y, cv::Mat& mask) {
     if (x < 0 || y < 0 || x >= mask.cols || y >= mask.rows) {
         return;
@@ -332,6 +400,19 @@ bool IsValidRoiInfo(const HVGeometryInfo& roi) {
             IsFiniteDouble(roi.AsRotatedRect().angle_deg_) &&
             roi.AsRotatedRect().width_ > 0.0 &&
             roi.AsRotatedRect().height_ > 0.0;
+    case HVGeometryShapeType::Box:
+        return IsFinitePoint3D(roi.AsBox().center_) &&
+            IsFiniteDouble(roi.AsBox().length_) &&
+            IsFiniteDouble(roi.AsBox().width_) &&
+            IsFiniteDouble(roi.AsBox().height_) &&
+            roi.AsBox().IsValid();
+    case HVGeometryShapeType::RotatedBox:
+        return IsFinitePoint3D(roi.AsRotatedBox().center_) &&
+            IsFiniteDouble(roi.AsRotatedBox().length_) &&
+            IsFiniteDouble(roi.AsRotatedBox().width_) &&
+            IsFiniteDouble(roi.AsRotatedBox().height_) &&
+            IsFiniteOrientation3D(roi.AsRotatedBox().orientation_) &&
+            roi.AsRotatedBox().IsValid();
     default:
         return false;
     }
@@ -379,5 +460,73 @@ bool BuildMaskedImageFromRoi(const HVGeometryInfo& roi, const ImageDataInfo2D& s
     cv::Mat masked = cv::Mat::zeros(src.size(), src.type());
     src.copyTo(masked, mask);
     out_image = ImageConverter::FromMat(masked);
+    return true;
+}
+
+bool CropPclPointCloudByGeometry(
+    const HVGeometryInfo& geometry,
+    const pcl::PointCloud<pcl::PointXYZ>& input,
+    pcl::PointCloud<pcl::PointXYZ>& output) {
+    output.clear();
+    output.width = 0;
+    output.height = 1;
+    output.is_dense = input.is_dense;
+
+    if (!IsSupportedPointCloudGeometry(geometry) || !IsValidRoiInfo(geometry)) {
+        return false;
+    }
+
+    output.points.reserve(input.points.size());
+    for (const pcl::PointXYZ& point : input.points) {
+        if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) {
+            continue;
+        }
+        if (IsPointInsideGeometry(geometry, point.x, point.y, point.z)) {
+            output.points.push_back(point);
+        }
+    }
+
+    output.width = static_cast<std::uint32_t>(output.points.size());
+    return true;
+}
+
+bool CropOpen3DPointCloudByGeometry(
+    const HVGeometryInfo& geometry,
+    const open3d::geometry::PointCloud& input,
+    open3d::geometry::PointCloud& output) {
+    output.Clear();
+
+    if (!IsSupportedPointCloudGeometry(geometry) || !IsValidRoiInfo(geometry)) {
+        return false;
+    }
+
+    const bool has_colors = input.HasColors();
+    const bool has_normals = input.HasNormals();
+    output.points_.reserve(input.points_.size());
+    if (has_colors) {
+        output.colors_.reserve(input.colors_.size());
+    }
+    if (has_normals) {
+        output.normals_.reserve(input.normals_.size());
+    }
+
+    for (size_t i = 0; i < input.points_.size(); ++i) {
+        const Eigen::Vector3d& point = input.points_[i];
+        if (!std::isfinite(point.x()) || !std::isfinite(point.y()) || !std::isfinite(point.z())) {
+            continue;
+        }
+        if (!IsPointInsideGeometry(geometry, point.x(), point.y(), point.z())) {
+            continue;
+        }
+
+        output.points_.push_back(point);
+        if (has_colors) {
+            output.colors_.push_back(input.colors_[i]);
+        }
+        if (has_normals) {
+            output.normals_.push_back(input.normals_[i]);
+        }
+    }
+
     return true;
 }
