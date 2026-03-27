@@ -46,15 +46,11 @@ public:
 private:
     int condition_type_ = 0;
     int int_input_ = 0;
-    double double_input_ = 0.0;
-    bool bool_input_ = false;
-    std::string string_input_;
-    int compare_operator_ = 0;
-    int int_compare_value_ = 0;
-    double double_compare_value_ = 0.0;
-    bool bool_compare_value_ = false;
-    std::string string_compare_value_;
-    int target_node_id_ = -1;
+    double float_input_ = 0.0;
+    double min_value_ = 0.0;
+    double max_value_ = 0.0;
+    int ok_target_node_id_ = -1;
+    int ng_target_node_id_ = -1;
 
     int matched_target_node_id_ = -1;
     int execute_status_ = NODE_STATUS_NOT_RUN;
