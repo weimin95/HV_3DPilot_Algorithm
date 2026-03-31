@@ -352,8 +352,8 @@ std::vector<void*> HVCloudRegister::get_current_params()
 std::vector<void*> HVCloudRegister::get_algorithm_result()
 {
     if (execute_status == SUCCESS)
-        return { &resultCloud, &transformMatrix };
-    return { nullptr, nullptr };
+        return { &resultCloud, &transformMatrix, &execute_status };
+    return { nullptr, nullptr, &execute_status };
 }
 
 std::vector<int> HVCloudRegister::get_algorithm_input_params_type()
@@ -369,7 +369,7 @@ std::vector<int> HVCloudRegister::get_algorithm_input_params_type()
 
 std::vector<int> HVCloudRegister::get_algorithm_output_params_type()
 {
-    return { HV_POINTCLOUD, HV_STRING };
+    return { HV_POINTCLOUD, HV_STRING, HV_INT };
 }
 
 std::vector<std::string> HVCloudRegister::get_algorithm_input_params_name()
@@ -397,7 +397,11 @@ std::vector<std::string> HVCloudRegister::get_algorithm_input_params_name()
 
 std::vector<std::string> HVCloudRegister::get_algorithm_output_params_name()
 {
-    return { Tr(language_, "output.aligned_cloud"), Tr(language_, "output.transform_matrix") };
+    return {
+        Tr(language_, "output.aligned_cloud"),
+        Tr(language_, "output.transform_matrix"),
+        language_ == static_cast<int>(UIPilotLanguage::EN_US) ? "Execute status" : "运行状态"
+    };
 }
 
 std::vector<bool> HVCloudRegister::get_algorithm_input_params_bindable()

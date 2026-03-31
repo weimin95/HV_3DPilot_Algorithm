@@ -118,8 +118,8 @@ int HVImageEdge::set_algorithm_params(const std::vector<void*>& params, const st
 std::vector<void*> HVImageEdge::get_algorithm_result()
 {
     if (execute_status == SUCCESS)
-	    return { &resultImg };
-    return { nullptr };
+	    return { &resultImg, &execute_status };
+    return { nullptr, &execute_status };
 }
 
 std::vector<int> HVImageEdge::get_algorithm_input_params_type()
@@ -129,7 +129,7 @@ std::vector<int> HVImageEdge::get_algorithm_input_params_type()
 
 std::vector<int> HVImageEdge::get_algorithm_output_params_type()
 {
-    return { HV_IMAGEDATAINFO2D };
+    return { HV_IMAGEDATAINFO2D, HV_INT };
 }
 
 std::vector<std::string> HVImageEdge::get_algorithm_input_params_name()
@@ -143,7 +143,10 @@ std::vector<std::string> HVImageEdge::get_algorithm_input_params_name()
 
 std::vector<std::string> HVImageEdge::get_algorithm_output_params_name()
 {
-    return { Tr(language_, "output.edge.name") };
+    return {
+        Tr(language_, "output.edge.name"),
+        language_ == static_cast<int>(UIPilotLanguage::EN_US) ? "Execute status" : "运行状态"
+    };
 }
 
 std::vector<bool> HVImageEdge::get_algorithm_input_params_bindable()

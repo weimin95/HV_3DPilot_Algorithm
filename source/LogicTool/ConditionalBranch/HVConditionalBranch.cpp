@@ -28,6 +28,7 @@ const hvi18n::Dictionary kTexts = {
     { "input.ng_target.name", { "NG\u76ee\u6807\u8282\u70b9ID", "NG target node id" } },
     { "input.ng_target.desc", { "\u6761\u4ef6\u4e0d\u6ee1\u8db3\u65f6\u7ee7\u7eed\u6267\u884c\u7684\u76f4\u63a5\u4e0b\u6e38\u8282\u70b9ID", "Direct downstream node id to continue when the condition does not match" } },
     { "output.target.name", { "\u547d\u4e2d\u76ee\u6807\u8282\u70b9ID", "Matched target node id" } },
+    { "output.status.name", { "\u8fd0\u884c\u72b6\u6001", "Execute status" } },
     { "option.type.int", { "\u6574\u6570", "Integer" } },
     { "option.type.float", { "\u6d6e\u70b9", "Float" } },
     { "msg.invalid_condition_type", { "\u6761\u4ef6\u7c7b\u578b\u4e0d\u5408\u6cd5", "Condition type is invalid" } },
@@ -50,7 +51,7 @@ HVConditionalBranch::HVConditionalBranch()
 int HVConditionalBranch::init()
 {
     matched_target_node_id_ = -1;
-    execute_status_ = NODE_STATUS_NOT_RUN;
+    execute_status = NODE_STATUS_NOT_RUN;
     run_time_ = 0;
     error_msg_.clear();
     return SUCCESS;
@@ -59,18 +60,18 @@ int HVConditionalBranch::init()
 int HVConditionalBranch::run()
 {
     const auto start = std::chrono::steady_clock::now();
-    execute_status_ = NODE_STATUS_RUNNING;
+    execute_status = NODE_STATUS_RUNNING;
     matched_target_node_id_ = -1;
     error_msg_.clear();
 
     if (ok_target_node_id_ < 0 || ng_target_node_id_ < 0) {
-        execute_status_ = ALGORITHM_RUN_ERROR;
+        execute_status = ALGORITHM_RUN_ERROR;
         error_msg_ = "msg.invalid_target";
         return ALGORITHM_RUN_ERROR;
     }
 
     if (min_value_ > max_value_) {
-        execute_status_ = ALGORITHM_RUN_ERROR;
+        execute_status = ALGORITHM_RUN_ERROR;
         error_msg_ = "msg.invalid_range";
         return ALGORITHM_RUN_ERROR;
     }
@@ -85,7 +86,7 @@ int HVConditionalBranch::run()
         matched = float_input_ >= min_value_ && float_input_ <= max_value_;
         break;
     default:
-        execute_status_ = ALGORITHM_RUN_ERROR;
+        execute_status = ALGORITHM_RUN_ERROR;
         error_msg_ = "msg.invalid_condition_type";
         return ALGORITHM_RUN_ERROR;
     }
@@ -94,7 +95,7 @@ int HVConditionalBranch::run()
 
     const auto end = std::chrono::steady_clock::now();
     run_time_ = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    execute_status_ = SUCCESS;
+    execute_status = SUCCESS;
     error_msg_ = "msg.run_success";
     return SUCCESS;
 }
@@ -158,10 +159,10 @@ std::vector<void*> HVConditionalBranch::get_current_params()
 
 std::vector<void*> HVConditionalBranch::get_algorithm_result()
 {
-    if (execute_status_ == SUCCESS) {
-        return { &matched_target_node_id_ };
+    if (execute_status == SUCCESS) {
+        return { &matched_target_node_id_, &execute_status };
     }
-    return { nullptr };
+    return { nullptr, &execute_status };
 }
 
 std::vector<int> HVConditionalBranch::get_algorithm_input_params_type()
@@ -179,7 +180,7 @@ std::vector<int> HVConditionalBranch::get_algorithm_input_params_type()
 
 std::vector<int> HVConditionalBranch::get_algorithm_output_params_type()
 {
-    return { HV_INT };
+    return { HV_INT, HV_INT };
 }
 
 std::vector<std::string> HVConditionalBranch::get_algorithm_input_params_name()
@@ -197,7 +198,10 @@ std::vector<std::string> HVConditionalBranch::get_algorithm_input_params_name()
 
 std::vector<std::string> HVConditionalBranch::get_algorithm_output_params_name()
 {
-    return { Tr(language_, "output.target.name") };
+    return {
+        Tr(language_, "output.target.name"),
+        Tr(language_, "output.status.name")
+    };
 }
 
 std::vector<bool> HVConditionalBranch::get_algorithm_input_params_bindable()
@@ -256,7 +260,7 @@ std::vector<ParamMetadata> HVConditionalBranch::get_algorithm_input_params_metad
 
 int HVConditionalBranch::get_algorithm_execute_status()
 {
-    return execute_status_;
+    return execute_status;
 }
 
 std::string HVConditionalBranch::get_algorithm_error_message()

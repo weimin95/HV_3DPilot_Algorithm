@@ -258,8 +258,8 @@ std::vector<void*> HVCloudFit::get_current_params()
 std::vector<void*> HVCloudFit::get_algorithm_result()
 {
     if (execute_status == SUCCESS)
-        return { &inlierCloud, &modelCoefficients };
-    return { nullptr, nullptr };
+        return { &inlierCloud, &modelCoefficients, &execute_status };
+    return { nullptr, nullptr, &execute_status };
 }
 
 std::vector<int> HVCloudFit::get_algorithm_input_params_type()
@@ -269,7 +269,7 @@ std::vector<int> HVCloudFit::get_algorithm_input_params_type()
 
 std::vector<int> HVCloudFit::get_algorithm_output_params_type()
 {
-    return { HV_POINTCLOUD, HV_STRING };
+    return { HV_POINTCLOUD, HV_STRING, HV_INT };
 }
 
 std::vector<std::string> HVCloudFit::get_algorithm_input_params_name()
@@ -288,7 +288,11 @@ std::vector<std::string> HVCloudFit::get_algorithm_input_params_name()
 
 std::vector<std::string> HVCloudFit::get_algorithm_output_params_name()
 {
-    return { Tr(language_, "output.inlier_cloud"), Tr(language_, "output.model_coeff") };
+    return {
+        Tr(language_, "output.inlier_cloud"),
+        Tr(language_, "output.model_coeff"),
+        language_ == static_cast<int>(UIPilotLanguage::EN_US) ? "Execute status" : "运行状态"
+    };
 }
 
 std::vector<bool> HVCloudFit::get_algorithm_input_params_bindable()

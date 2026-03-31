@@ -53,7 +53,7 @@ private:
     int ng_target_node_id_ = -1;
 
     int matched_target_node_id_ = -1;
-    int execute_status_ = NODE_STATUS_NOT_RUN;
+    int execute_status = NODE_STATUS_NOT_RUN;
     long run_time_ = 0;
     std::string error_msg_;
     int language_ = static_cast<int>(UIPilotLanguage::ZH_CN);

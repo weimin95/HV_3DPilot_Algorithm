@@ -79,8 +79,8 @@ int HVImageReader::set_algorithm_params(const std::vector<void*>& params, const 
 std::vector<void*> HVImageReader::get_algorithm_result()
 {
 	if (execute_status == SUCCESS)
-	    return { &resultImg };
-	return { nullptr };
+	    return { &resultImg, &execute_status };
+	return { nullptr, &execute_status };
 }
 
 std::vector<int> HVImageReader::get_algorithm_input_params_type()
@@ -90,7 +90,7 @@ std::vector<int> HVImageReader::get_algorithm_input_params_type()
 
 std::vector<int> HVImageReader::get_algorithm_output_params_type()
 {
-	return { HV_IMAGEDATAINFO2D };
+	return { HV_IMAGEDATAINFO2D, HV_INT };
 }
 
 std::vector<std::string> HVImageReader::get_algorithm_input_params_name()
@@ -100,7 +100,10 @@ std::vector<std::string> HVImageReader::get_algorithm_input_params_name()
 
 std::vector<std::string> HVImageReader::get_algorithm_output_params_name()
 {
-	return { Tr(language_, "output.image.name") };
+	return {
+        Tr(language_, "output.image.name"),
+        language_ == static_cast<int>(UIPilotLanguage::EN_US) ? "Execute status" : "运行状态"
+    };
 }
 
 std::vector<bool> HVImageReader::get_algorithm_input_params_bindable()

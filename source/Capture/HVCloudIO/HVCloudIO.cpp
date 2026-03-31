@@ -75,8 +75,8 @@ int HVCloudIO::set_algorithm_params(const std::vector<void*>& params, const std:
 std::vector<void*> HVCloudIO::get_algorithm_result()
 {
     if (execute_status == SUCCESS)
-	    return { &cloudout };
-    return { nullptr };
+	    return { &cloudout, &execute_status };
+    return { nullptr, &execute_status };
 }
 
 std::vector<int> HVCloudIO::get_algorithm_input_params_type()
@@ -86,7 +86,7 @@ std::vector<int> HVCloudIO::get_algorithm_input_params_type()
 
 std::vector<int> HVCloudIO::get_algorithm_output_params_type()
 {
-    return { HV_POINTCLOUD };
+    return { HV_POINTCLOUD, HV_INT };
 }
 
 std::vector<std::string> HVCloudIO::get_algorithm_input_params_name()
@@ -96,7 +96,10 @@ std::vector<std::string> HVCloudIO::get_algorithm_input_params_name()
 
 std::vector<std::string> HVCloudIO::get_algorithm_output_params_name()
 {
-	return { Tr(language_, "output.cloud.name") };
+	return {
+        Tr(language_, "output.cloud.name"),
+        language_ == static_cast<int>(UIPilotLanguage::EN_US) ? "Execute status" : "运行状态"
+    };
 }
 
 std::vector<bool> HVCloudIO::get_algorithm_input_params_bindable()
