@@ -38,12 +38,17 @@ find_package(PCL REQUIRED COMPONENTS
 )
 
 # Include directories
+set(HV_3DPILOT_PUBLIC_INCLUDE_DIR
+    "D:/proj/git/HV_3DPilot-zengxin/HV_3DPliot/header/public"
+    CACHE PATH
+    "Path to HV_3DPilot public headers")
+
 include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${OpenCV_INCLUDE_DIRS}
     ${Open3D_INCLUDE_DIRS}
     ${PCL_INCLUDE_DIRS}
-    D:/proj/git/HV_3DPilot-zengxin/HV_3DPliot/header/public
+    ${HV_3DPILOT_PUBLIC_INCLUDE_DIR}
 )
 
 # PCL definitions and link directories
@@ -74,6 +79,19 @@ if(COMMON_SRC)
     source_group("Header Files" FILES ${COMMON_HEADERS})
     source_group("Source Files" FILES ${COMMON_SRC})
 endif()
+
+add_library(lua_vendor STATIC
+    ${CMAKE_SOURCE_DIR}/third_party/lua/onelua.c
+)
+
+target_compile_definitions(lua_vendor PRIVATE
+    MAKE_LIB
+    _CRT_SECURE_NO_WARNINGS
+)
+
+target_include_directories(lua_vendor PUBLIC
+    ${CMAKE_SOURCE_DIR}/third_party/lua
+)
 
 # Build one plugin from source/<Category>/<PluginName>
 macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
@@ -119,6 +137,14 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
             Open3D::Open3D
             ${PCL_LIBRARIES}
         )
+
+        if(${PLUGIN_NAME} STREQUAL "HVLuaScriptRouting")
+            target_include_directories(${PLUGIN_NAME} PRIVATE
+                ${CMAKE_SOURCE_DIR}/third_party/lua
+                ${CMAKE_SOURCE_DIR}/third_party/sol2/include
+            )
+            target_link_libraries(${PLUGIN_NAME} PRIVATE lua_vendor)
+        endif()
 
         if(TARGET common_lib)
             target_link_libraries(${PLUGIN_NAME} PRIVATE common_lib)
