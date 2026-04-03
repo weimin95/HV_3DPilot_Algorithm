@@ -1,15 +1,17 @@
 #pragma once
 
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "node_engine.h"
 #include "3d_pliot_error.h"
 #include "param_meta_data.h"
 
-#include <string>
-
-class HVLuaScriptRouting : public NodeEngine {
+class HVLuaScriptNode : public NodeEngine {
 public:
-    HVLuaScriptRouting();
-    ~HVLuaScriptRouting() override = default;
+    HVLuaScriptNode();
+    ~HVLuaScriptNode() override = default;
 
     int init() override;
     int run() override;
@@ -43,18 +45,46 @@ public:
     std::string get_algorithm_display_name() override;
 
     void set_host_services(NodeHostServices* host_services) override;
-    NodeControlMode get_control_mode() const override;
+
+public:
+    struct ScriptPortDef {
+        std::string name;
+        int type = -1;
+    };
+
+    struct ScriptValue {
+        int type = -1;
+        bool has_value = false;
+        int int_value = 0;
+        float float_value = 0.0f;
+        std::string string_value;
+    };
 
 private:
-    std::string script_path_;
-    int timeout_ms_ = 5000;
+    bool RebuildSchema(std::string& out_error);
+    bool EnsureRuntimeReady(std::string& out_error);
+    void MarkRuntimeDirty();
+    ScriptValue MakeDefaultValue(int type) const;
 
-    int route_target_node_id_ = -1;
+    std::string script_content_;
+    std::string input_defs_json_;
+    std::string output_defs_json_;
+    std::vector<ScriptPortDef> input_defs_;
+    std::vector<ScriptPortDef> output_defs_;
+    std::vector<ScriptValue> input_values_;
+    std::vector<ScriptValue> output_values_;
+
     int execute_status_ = NODE_STATUS_NOT_RUN;
     long run_time_ = 0;
     std::string error_msg_;
+    std::string console_output_;
     int language_ = static_cast<int>(UIPilotLanguage::ZH_CN);
     NodeHostServices* host_services_ = nullptr;
+    bool runtime_dirty_ = true;
+    bool runtime_ready_ = false;
+
+    struct RuntimeState;
+    std::unique_ptr<RuntimeState> runtime_state_;
 };
 
 extern "C" __declspec(dllexport) NodeEngine* CreateInstance();

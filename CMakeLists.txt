@@ -138,7 +138,7 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
             ${PCL_LIBRARIES}
         )
 
-        if(${PLUGIN_NAME} STREQUAL "HVLuaScriptRouting")
+        if(${PLUGIN_NAME} STREQUAL "HVLuaScriptNode")
             target_include_directories(${PLUGIN_NAME} PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/lua
                 ${CMAKE_SOURCE_DIR}/third_party/sol2/include
