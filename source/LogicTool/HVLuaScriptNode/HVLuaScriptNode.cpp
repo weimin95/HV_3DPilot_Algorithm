@@ -335,6 +335,35 @@ bool HVLuaScriptNode::EnsureRuntimeReady(std::string& out_error)
         }
         return HostValueToLua(lua, value);
     });
+    lua.set_function("GetNodeResult", [this, &lua](const std::string& node_alias, const std::string& output_name) {
+        if (host_services_ == nullptr) {
+            throw std::runtime_error("Host services are unavailable");
+        }
+
+        NodeHostValue value;
+        const int ret = host_services_->get_upstream_result_by_name(node_alias, output_name, value);
+        if (ret == SUCCESS) {
+            return HostValueToLua(lua, value);
+        }
+
+        const std::string output_label = node_alias + "." + output_name;
+        switch (ret) {
+        case UPSTREAM_RESULT_NODE_NOT_FOUND:
+            throw std::runtime_error("Unknown upstream node alias: " + node_alias);
+        case UPSTREAM_RESULT_ALIAS_AMBIGUOUS:
+            throw std::runtime_error("Node alias is ambiguous: " + node_alias);
+        case UPSTREAM_RESULT_NOT_REACHABLE:
+            throw std::runtime_error("Node is not upstream-reachable: " + node_alias);
+        case UPSTREAM_RESULT_UNAVAILABLE:
+            throw std::runtime_error("Upstream result is unavailable: " + output_label);
+        case UPSTREAM_RESULT_OUTPUT_NOT_FOUND:
+            throw std::runtime_error("Unknown upstream output: " + output_label);
+        case UPSTREAM_RESULT_TYPE_NOT_SUPPORTED:
+            throw std::runtime_error("Unsupported upstream output type: " + output_label);
+        default:
+            throw std::runtime_error("Failed to read upstream result: " + output_label);
+        }
+    });
     lua.set_function("SetGlobalValue", [this](const std::string& name, const sol::object& object) {
         if (host_services_ == nullptr) {
             throw std::runtime_error("Host services are unavailable");
@@ -346,6 +375,34 @@ bool HVLuaScriptNode::EnsureRuntimeReady(std::string& out_error)
         const int ret = host_services_->set_global_value_by_name(name, value, true);
         if (ret < 0) {
             throw std::runtime_error("Failed to write global value: " + name);
+        }
+    });
+    lua.set_function("GetNodeResult", [this, &lua](const std::string& node_alias, const std::string& output_name) {
+        if (host_services_ == nullptr) {
+            throw std::runtime_error("Host services are unavailable");
+        }
+
+        NodeHostValue value;
+        const int ret = host_services_->get_upstream_result_by_name(node_alias, output_name, value);
+        if (ret == SUCCESS) {
+            return HostValueToLua(lua, value);
+        }
+
+        switch (ret) {
+        case UPSTREAM_RESULT_NODE_NOT_FOUND:
+            throw std::runtime_error("Unknown upstream node alias: " + node_alias);
+        case UPSTREAM_RESULT_ALIAS_AMBIGUOUS:
+            throw std::runtime_error("Node alias is ambiguous: " + node_alias);
+        case UPSTREAM_RESULT_NOT_REACHABLE:
+            throw std::runtime_error("Node is not upstream-reachable: " + node_alias);
+        case UPSTREAM_RESULT_UNAVAILABLE:
+            throw std::runtime_error("Upstream result is unavailable: " + node_alias + "." + output_name);
+        case UPSTREAM_RESULT_OUTPUT_NOT_FOUND:
+            throw std::runtime_error("Unknown upstream output: " + node_alias + "." + output_name);
+        case UPSTREAM_RESULT_TYPE_NOT_SUPPORTED:
+            throw std::runtime_error("Unsupported upstream output type: " + node_alias + "." + output_name);
+        default:
+            throw std::runtime_error("Failed to read upstream result: " + node_alias + "." + output_name);
         }
     });
 
