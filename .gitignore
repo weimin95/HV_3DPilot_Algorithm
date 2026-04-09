@@ -5,3 +5,6 @@
 /build
 /build_roi_param_verify
 /build_roi_param_no_tests
+/.worktrees
+/managed
+/resources/icons
