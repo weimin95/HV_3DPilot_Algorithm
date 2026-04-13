@@ -1,5 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.10)
 project(HV_3DPilot_Algorithm)
+include(CTest)
 
 # Common configuration
 set(CMAKE_CXX_STANDARD 17)
@@ -146,6 +147,30 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
             target_link_libraries(${PLUGIN_NAME} PRIVATE lua_vendor)
         endif()
 
+        if(${PLUGIN_NAME} STREQUAL "HVLineLaser3DCamera")
+            set(SR7LINK_ROOT "${CMAKE_SOURCE_DIR}/third_party/SR7Link")
+            target_include_directories(${PLUGIN_NAME} PRIVATE
+                "${SR7LINK_ROOT}/include"
+            )
+            target_link_libraries(${PLUGIN_NAME} PRIVATE
+                "${SR7LINK_ROOT}/x64/SR7Link.lib"
+            )
+
+            if(MSVC)
+                target_compile_options(${PLUGIN_NAME} PRIVATE /utf-8 /wd4190)
+            endif()
+
+            add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${SR7LINK_ROOT}/x64/SR7Link.dll"
+                    "$<TARGET_FILE_DIR:${PLUGIN_NAME}>/SR7Link.dll"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${SR7LINK_ROOT}/x64/frequency.ssp"
+                    "$<TARGET_FILE_DIR:${PLUGIN_NAME}>/frequency.ssp"
+                COMMENT "Copy SR7Link runtime files for HVLineLaser3DCamera"
+            )
+        endif()
+
         if(TARGET common_lib)
             target_link_libraries(${PLUGIN_NAME} PRIVATE common_lib)
         endif()
@@ -175,5 +200,27 @@ if(EXISTS "${ICON_SOURCE_ROOT}")
             -DICON_DST_ROOT="${CMAKE_BINARY_DIR}/HV_3DPilot_Algorithm$<CONFIG>/plugins/icons"
             -P "${CMAKE_SOURCE_DIR}/cmake/CopyIcons.cmake"
         COMMENT "Copy plugin icon resources to runtime plugins/icons"
+    )
+endif()
+
+if(BUILD_TESTING)
+    add_executable(HV_3DPilot_Algorithm_LineLaserCamera_Test
+        tests/line_laser_3d_camera_contract_test.cpp
+        source/Capture/HVLineLaser3DCamera/HVLineLaser3DCameraContract.cpp
+        source/Capture/HVLineLaser3DCamera/HVLineLaser3DCameraConversion.cpp
+    )
+
+    target_include_directories(HV_3DPilot_Algorithm_LineLaserCamera_Test PRIVATE
+        ${CMAKE_SOURCE_DIR}/source/Capture/HVLineLaser3DCamera
+        ${HV_3DPILOT_PUBLIC_INCLUDE_DIR}
+    )
+
+    if(MSVC)
+        target_compile_options(HV_3DPilot_Algorithm_LineLaserCamera_Test PRIVATE /utf-8)
+    endif()
+
+    add_test(
+        NAME HV_3DPilot_Algorithm_LineLaserCamera_Test
+        COMMAND HV_3DPilot_Algorithm_LineLaserCamera_Test
     )
 endif()
