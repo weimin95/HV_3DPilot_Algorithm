@@ -22,10 +22,9 @@ void Require(bool condition, const char* message)
 void ExpectContract()
 {
     const auto contract = line_laser_3d_camera::BuildContract();
-    const std::string zh_name = u8"\u7EBF\u6FC0\u51493D\u76F8\u673A";
 
-    Require(contract.algorithm_name == zh_name, "algorithm name");
-    Require(contract.zh_display_name == zh_name, "zh display name");
+    Require(contract.algorithm_name == "Line Laser 3D Camera", "algorithm name");
+    Require(contract.zh_display_name == u8"\u7EBF\u6FC0\u51493D\u76F8\u673A", "zh display name");
     Require(contract.en_display_name == "Line Laser 3D Camera", "en display name");
     Require(contract.algorithm_type == AlgorithmType::Capture, "algorithm type");
 

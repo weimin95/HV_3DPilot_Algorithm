@@ -58,8 +58,8 @@ ParamMetadata MakeOptionsMetadata(
 Contract BuildContract()
 {
     Contract contract;
-    contract.algorithm_name = "\u7EBF\u6FC0\u51493D\u76F8\u673A";
-    contract.zh_display_name = "\u7EBF\u6FC0\u51493D\u76F8\u673A";
+    contract.algorithm_name = "Line Laser 3D Camera";
+    contract.zh_display_name = u8"\u7EBF\u6FC0\u51493D\u76F8\u673A";
     contract.en_display_name = "Line Laser 3D Camera";
     contract.algorithm_type = AlgorithmType::Capture;
 
