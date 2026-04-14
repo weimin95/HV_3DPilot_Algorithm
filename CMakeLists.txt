@@ -211,7 +211,6 @@ if(BUILD_TESTING)
     )
 
     target_include_directories(HV_3DPilot_Algorithm_LineLaserCamera_Test PRIVATE
-        ${CMAKE_SOURCE_DIR}/source/Capture/HVLineLaser3DCamera
         ${HV_3DPILOT_PUBLIC_INCLUDE_DIR}
     )
 
