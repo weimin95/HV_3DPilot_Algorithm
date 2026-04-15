@@ -123,6 +123,11 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
             target_compile_options(${PLUGIN_NAME} PRIVATE /bigobj)
         endif()
 
+        if(MSVC AND (${PLUGIN_NAME} STREQUAL "HVImageRoiCrop" OR ${PLUGIN_NAME} STREQUAL "HVRoiCreate"))
+            # 新插件源码保存为 UTF-8；执行字符集沿用当前工程默认，保持与现有插件中文返回值一致。
+            target_compile_options(${PLUGIN_NAME} PRIVATE /source-charset:utf-8)
+        endif()
+
         set_target_properties(${PLUGIN_NAME} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/HV_3DPilot_Algorithm$<CONFIG>/plugins/${CATEGORY_NAME}/${PLUGIN_NAME}"
             RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/HV_3DPilot_AlgorithmDebug/plugins/${CATEGORY_NAME}/${PLUGIN_NAME}"
