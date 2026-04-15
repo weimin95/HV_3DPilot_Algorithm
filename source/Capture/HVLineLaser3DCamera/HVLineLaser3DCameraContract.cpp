@@ -1,7 +1,5 @@
 #include "HVLineLaser3DCameraContract.h"
 
-#include <Windows.h>
-
 #include <utility>
 
 namespace line_laser_3d_camera {
@@ -55,32 +53,13 @@ ParamMetadata MakeOptionsMetadata(
     return metadata;
 }
 
-std::string WideToCurrentCodePage(const wchar_t* text)
-{
-    if (text == nullptr || text[0] == L'\0') {
-        return {};
-    }
-
-    const int buffer_size = WideCharToMultiByte(CP_ACP, 0, text, -1, nullptr, 0, nullptr, nullptr);
-    if (buffer_size <= 0) {
-        return {};
-    }
-
-    std::string result(static_cast<size_t>(buffer_size), '\0');
-    WideCharToMultiByte(CP_ACP, 0, text, -1, &result[0], buffer_size, nullptr, nullptr);
-    if (!result.empty() && result.back() == '\0') {
-        result.pop_back();
-    }
-    return result;
-}
-
 }  // namespace
 
 Contract BuildContract()
 {
     Contract contract;
     contract.algorithm_name = "Line Laser 3D Camera";
-    contract.zh_display_name = WideToCurrentCodePage(L"\u7EBF\u6FC0\u51493D\u76F8\u673A");
+    contract.zh_display_name = u8"\u7EBF\u6FC0\u51493D\u76F8\u673A";
     contract.en_display_name = "Line Laser 3D Camera";
     contract.algorithm_type = AlgorithmType::Capture;
 
