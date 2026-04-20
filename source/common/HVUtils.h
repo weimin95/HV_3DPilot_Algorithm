@@ -24,7 +24,7 @@ void add_param(nlohmann::json& params_json, const std::string& name, int type, c
 template <typename T>
 T cast_param(const std::vector<void*>& params, int param_id)
 {
-    if (param_id < 0 || param_id > params.size() || params[param_id] == nullptr)
+    if (param_id < 0 || param_id >= params.size() || params[param_id] == nullptr)
     {
         return T();
     }
