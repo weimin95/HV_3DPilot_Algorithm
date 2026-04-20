@@ -35,7 +35,7 @@ T cast_param(const std::vector<void*>& params, int param_id)
 template <typename T>
 std::shared_ptr<T> cast_param_sharedPtr(const std::vector<void*>& params, int param_id)
 {
-    if (param_id < 0 || param_id > params.size() || params[param_id] == nullptr)
+    if (param_id < 0 || param_id >= params.size() || params[param_id] == nullptr)
     {
         return nullptr;
     }
