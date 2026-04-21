@@ -583,7 +583,7 @@ bool HVRoiCreate::load_params_from_json(const std::string& filePath)
 
 AlgorithmType HVRoiCreate::get_algorithm_type()
 {
-    return AlgorithmType::LogicTool;
+    return AlgorithmType::ImageProcess;
 }
 
 void HVRoiCreate::set_language(int language)
