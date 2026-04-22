@@ -44,16 +44,15 @@ public:
 
 private:
     int ApplyParam(int param_id, void* value_ptr);
-    int ParseRowsFromJson(std::vector<std::string>& rows);
-    int RenderRow(const std::string& row_template, std::string& rendered_row);
+    int RenderSlot(int slot_index, std::string& rendered_text);
     int ReadInputSlotValue(int slot_index, NodeHostDataView& data_view) const;
-    int FormatSlotValue(const NodeHostDataView& data_view, const std::string& format_text, std::string& rendered_value);
-    int FormatIntegerValue(long long value, const std::string& format_text, std::string& rendered_value);
-    int FormatFloatingValue(double value, const std::string& format_text, std::string& rendered_value);
+    int FormatSlotValue(const NodeHostDataView& data_view, std::string& rendered_value);
     int Fail(int status, const std::string& message_key);
 
 private:
-    std::string rules_json_;
+    std::string slot0_label_;
+    std::string slot1_label_;
+    std::string slot2_label_;
     std::string segment_separator_ = ";";
     std::string output_ending_ = "\r\n";
 

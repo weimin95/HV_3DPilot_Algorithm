@@ -1,10 +1,7 @@
 #include "HVFormat.h"
 
 #include <chrono>
-#include <cstdio>
 #include <fstream>
-#include <iomanip>
-#include <regex>
 #include <sstream>
 
 #include <json.hpp>
@@ -13,68 +10,45 @@
 
 namespace {
 
-constexpr int kRulesJsonParamId = 0;
-constexpr int kSegmentSeparatorParamId = 1;
-constexpr int kOutputEndingParamId = 2;
-constexpr int kInput0ParamId = 3;
-constexpr int kInput1ParamId = 4;
-constexpr int kInput2ParamId = 5;
+constexpr int kSlot0LabelParamId = 0;
+constexpr int kSlot1LabelParamId = 1;
+constexpr int kSlot2LabelParamId = 2;
+constexpr int kSegmentSeparatorParamId = 3;
+constexpr int kOutputEndingParamId = 4;
+constexpr int kInput0ParamId = 5;
+constexpr int kInput1ParamId = 6;
+constexpr int kInput2ParamId = 7;
 constexpr int kInputSlotCount = 3;
 
 const hvi18n::Dictionary kTexts = {
     { "algorithm.display", { "格式化", "Format" } },
-    { "input.rules_json.name", { "规则配置", "Rules config" } },
-    { "input.rules_json.desc", { "格式化规则 JSON 字符串", "Formatting rules JSON string" } },
+    { "input.slot0_label.name", { "名称0", "Label 0" } },
+    { "input.slot0_label.desc", { "第 0 个输入槽输出前缀", "Prefix text for input slot 0" } },
+    { "input.slot1_label.name", { "名称1", "Label 1" } },
+    { "input.slot1_label.desc", { "第 1 个输入槽输出前缀", "Prefix text for input slot 1" } },
+    { "input.slot2_label.name", { "名称2", "Label 2" } },
+    { "input.slot2_label.desc", { "第 2 个输入槽输出前缀", "Prefix text for input slot 2" } },
     { "input.segment_separator.name", { "分隔符", "Segment separator" } },
-    { "input.segment_separator.desc", { "多条规则输出之间的分隔符", "Separator between rendered rows" } },
+    { "input.segment_separator.desc", { "多条格式化结果之间的分隔符", "Separator between rendered segments" } },
     { "input.output_ending.name", { "结束符", "Output ending" } },
     { "input.output_ending.desc", { "最终输出追加的结束符", "Ending text appended to the final output" } },
     { "input.input0.name", { "输入0", "Input 0" } },
-    { "input.input0.desc", { "绑定到占位符 ${0} 的输入", "Input bound to placeholder ${0}" } },
+    { "input.input0.desc", { "绑定到第 0 个格式化槽位的数据", "Data bound to formatting slot 0" } },
     { "input.input1.name", { "输入1", "Input 1" } },
-    { "input.input1.desc", { "绑定到占位符 ${1} 的输入", "Input bound to placeholder ${1}" } },
+    { "input.input1.desc", { "绑定到第 1 个格式化槽位的数据", "Data bound to formatting slot 1" } },
     { "input.input2.name", { "输入2", "Input 2" } },
-    { "input.input2.desc", { "绑定到占位符 ${2} 的输入", "Input bound to placeholder ${2}" } },
+    { "input.input2.desc", { "绑定到第 2 个格式化槽位的数据", "Data bound to formatting slot 2" } },
     { "output.formatted_text.name", { "格式化结果", "Formatted text" } },
     { "output.status.name", { "运行状态", "Execute status" } },
     { "msg.host_services_missing", { "宿主服务不可用", "Host services are unavailable" } },
-    { "msg.invalid_rules_json", { "规则配置 JSON 非法", "Rules config JSON is invalid" } },
-    { "msg.invalid_rows_json", { "规则配置缺少字符串数组 rows", "Rules config must contain a string array rows" } },
-    { "msg.invalid_placeholder", { "模板占位符语法非法", "Template placeholder syntax is invalid" } },
-    { "msg.invalid_slot_index", { "模板引用了无效输入槽位", "Template references an invalid input slot" } },
-    { "msg.input_not_bound", { "模板引用的输入槽位未绑定有效数据", "Template references an input slot without a valid bound value" } },
+    { "msg.input_not_bound", { "存在已启用但未绑定有效数据的格式化槽位", "An enabled formatting slot does not have a valid bound value" } },
     { "msg.unsupported_type", { "格式化节点暂不支持该输入类型", "Format node does not support this input type yet" } },
-    { "msg.invalid_format", { "占位符格式串非法", "Placeholder format string is invalid" } },
-    { "msg.invalid_string_format", { "字符串和布尔值不支持数值格式串", "Strings and booleans do not support numeric format strings" } },
     { "msg.run_success", { "格式化成功", "Formatting succeeded" } }
 };
 
 std::string Tr(int language, const std::string& key)
 {
     return hvi18n::Translate(kTexts, key, language);
-}
-
-bool ParseIntegerFormat(const std::string& format_text)
-{
-    if (format_text.empty()) {
-        return true;
-    }
-    static const std::regex kIntegerPattern(R"(^%[0-9]*[di]$)");
-    return std::regex_match(format_text, kIntegerPattern);
-}
-
-bool ParseFloatingFormat(const std::string& format_text)
-{
-    if (format_text.empty()) {
-        return true;
-    }
-    static const std::regex kFloatPattern(R"(^%[0-9]*(?:\.[0-9]+)?f$)");
-    return std::regex_match(format_text, kFloatPattern);
-}
-
-std::string FormatIntegerDefault(long long value)
-{
-    return std::to_string(value);
 }
 
 std::string FormatFloatingDefault(double value)
@@ -110,30 +84,24 @@ int HVFormat::run()
         return Fail(ALGORITHM_RUN_ERROR, "msg.host_services_missing");
     }
 
-    std::vector<std::string> rows;
-    int parse_ret = ParseRowsFromJson(rows);
-    if (parse_ret != SUCCESS) {
-        return Fail(parse_ret, error_message_key_);
-    }
-
-    std::vector<std::string> rendered_rows;
-    rendered_rows.reserve(rows.size());
-    for (const auto& row : rows) {
-        std::string rendered_row;
-        const int render_ret = RenderRow(row, rendered_row);
+    std::vector<std::string> rendered_segments;
+    rendered_segments.reserve(kInputSlotCount);
+    for (int slot_index = 0; slot_index < kInputSlotCount; ++slot_index) {
+        std::string rendered_text;
+        const int render_ret = RenderSlot(slot_index, rendered_text);
         if (render_ret != SUCCESS) {
             return Fail(render_ret, error_message_key_);
         }
-        if (!rendered_row.empty()) {
-            rendered_rows.push_back(rendered_row);
+        if (!rendered_text.empty()) {
+            rendered_segments.push_back(rendered_text);
         }
     }
 
-    for (size_t i = 0; i < rendered_rows.size(); ++i) {
+    for (size_t i = 0; i < rendered_segments.size(); ++i) {
         if (i > 0) {
             formatted_text_ += segment_separator_;
         }
-        formatted_text_ += rendered_rows[i];
+        formatted_text_ += rendered_segments[i];
     }
     formatted_text_ += output_ending_;
 
@@ -172,7 +140,16 @@ int HVFormat::set_algorithm_params(const std::vector<void*>& params, const std::
 
 std::vector<void*> HVFormat::get_current_params()
 {
-    return { &rules_json_, &segment_separator_, &output_ending_, nullptr, nullptr, nullptr };
+    return {
+        &slot0_label_,
+        &slot1_label_,
+        &slot2_label_,
+        &segment_separator_,
+        &output_ending_,
+        nullptr,
+        nullptr,
+        nullptr
+    };
 }
 
 std::vector<void*> HVFormat::get_algorithm_result()
@@ -185,7 +162,7 @@ std::vector<void*> HVFormat::get_algorithm_result()
 
 std::vector<int> HVFormat::get_algorithm_input_params_type()
 {
-    return { HV_STRING, HV_STRING, HV_STRING, HV_ANYINPUT, HV_ANYINPUT, HV_ANYINPUT };
+    return { HV_STRING, HV_STRING, HV_STRING, HV_STRING, HV_STRING, HV_ANYINPUT, HV_ANYINPUT, HV_ANYINPUT };
 }
 
 std::vector<int> HVFormat::get_algorithm_output_params_type()
@@ -196,12 +173,14 @@ std::vector<int> HVFormat::get_algorithm_output_params_type()
 std::vector<std::string> HVFormat::get_algorithm_input_params_name()
 {
     return {
-        Tr(language_, "input.rules_json.name"),
+        Tr(language_, "input.slot0_label.name"),
+        Tr(language_, "input.slot1_label.name"),
+        Tr(language_, "input.slot2_label.name"),
         Tr(language_, "input.segment_separator.name"),
         Tr(language_, "input.output_ending.name"),
-        "input0",
-        "input1",
-        "input2"
+        Tr(language_, "input.input0.name"),
+        Tr(language_, "input.input1.name"),
+        Tr(language_, "input.input2.name")
     };
 }
 
@@ -215,36 +194,44 @@ std::vector<std::string> HVFormat::get_algorithm_output_params_name()
 
 std::vector<bool> HVFormat::get_algorithm_input_params_bindable()
 {
-    return { false, false, false, true, true, true };
+    return { false, false, false, false, false, true, true, true };
 }
 
 std::vector<ParamMetadata> HVFormat::get_algorithm_input_params_metadata()
 {
-    std::vector<ParamMetadata> metadata_list(6);
+    std::vector<ParamMetadata> metadata_list(8);
 
-    metadata_list[0].param_name = "rules_json";
-    metadata_list[0].param_description = Tr(language_, "input.rules_json.desc");
+    metadata_list[0].param_name = "slot0_label";
+    metadata_list[0].param_description = Tr(language_, "input.slot0_label.desc");
     metadata_list[0].param_type = HV_STRING;
 
-    metadata_list[1].param_name = "segment_separator";
-    metadata_list[1].param_description = Tr(language_, "input.segment_separator.desc");
+    metadata_list[1].param_name = "slot1_label";
+    metadata_list[1].param_description = Tr(language_, "input.slot1_label.desc");
     metadata_list[1].param_type = HV_STRING;
 
-    metadata_list[2].param_name = "output_ending";
-    metadata_list[2].param_description = Tr(language_, "input.output_ending.desc");
+    metadata_list[2].param_name = "slot2_label";
+    metadata_list[2].param_description = Tr(language_, "input.slot2_label.desc");
     metadata_list[2].param_type = HV_STRING;
 
-    metadata_list[3].param_name = "input0";
-    metadata_list[3].param_description = Tr(language_, "input.input0.desc");
-    metadata_list[3].param_type = HV_ANYINPUT;
+    metadata_list[3].param_name = "segment_separator";
+    metadata_list[3].param_description = Tr(language_, "input.segment_separator.desc");
+    metadata_list[3].param_type = HV_STRING;
 
-    metadata_list[4].param_name = "input1";
-    metadata_list[4].param_description = Tr(language_, "input.input1.desc");
-    metadata_list[4].param_type = HV_ANYINPUT;
+    metadata_list[4].param_name = "output_ending";
+    metadata_list[4].param_description = Tr(language_, "input.output_ending.desc");
+    metadata_list[4].param_type = HV_STRING;
 
-    metadata_list[5].param_name = "input2";
-    metadata_list[5].param_description = Tr(language_, "input.input2.desc");
+    metadata_list[5].param_name = "input0";
+    metadata_list[5].param_description = Tr(language_, "input.input0.desc");
     metadata_list[5].param_type = HV_ANYINPUT;
+
+    metadata_list[6].param_name = "input1";
+    metadata_list[6].param_description = Tr(language_, "input.input1.desc");
+    metadata_list[6].param_type = HV_ANYINPUT;
+
+    metadata_list[7].param_name = "input2";
+    metadata_list[7].param_description = Tr(language_, "input.input2.desc");
+    metadata_list[7].param_type = HV_ANYINPUT;
 
     return metadata_list;
 }
@@ -281,7 +268,9 @@ bool HVFormat::save_params_to_json(const std::string& filePath)
 {
     try {
         nlohmann::json params_json;
-        params_json["rules_json"] = rules_json_;
+        params_json["slot0_label"] = slot0_label_;
+        params_json["slot1_label"] = slot1_label_;
+        params_json["slot2_label"] = slot2_label_;
         params_json["segment_separator"] = segment_separator_;
         params_json["output_ending"] = output_ending_;
 
@@ -306,7 +295,9 @@ bool HVFormat::load_params_from_json(const std::string& filePath)
         }
         nlohmann::json params_json;
         file >> params_json;
-        rules_json_ = params_json.value("rules_json", std::string());
+        slot0_label_ = params_json.value("slot0_label", std::string());
+        slot1_label_ = params_json.value("slot1_label", std::string());
+        slot2_label_ = params_json.value("slot2_label", std::string());
         segment_separator_ = params_json.value("segment_separator", std::string(";"));
         output_ending_ = params_json.value("output_ending", std::string("\r\n"));
         return true;
@@ -344,11 +335,23 @@ void HVFormat::set_host_services(NodeHostServices* host_services)
 int HVFormat::ApplyParam(int param_id, void* value_ptr)
 {
     switch (param_id) {
-    case kRulesJsonParamId:
+    case kSlot0LabelParamId:
         if (value_ptr == nullptr) {
             return INVALID_PARAMS_NUM;
         }
-        rules_json_ = *static_cast<std::string*>(value_ptr);
+        slot0_label_ = *static_cast<std::string*>(value_ptr);
+        return SUCCESS;
+    case kSlot1LabelParamId:
+        if (value_ptr == nullptr) {
+            return INVALID_PARAMS_NUM;
+        }
+        slot1_label_ = *static_cast<std::string*>(value_ptr);
+        return SUCCESS;
+    case kSlot2LabelParamId:
+        if (value_ptr == nullptr) {
+            return INVALID_PARAMS_NUM;
+        }
+        slot2_label_ = *static_cast<std::string*>(value_ptr);
         return SUCCESS;
     case kSegmentSeparatorParamId:
         if (value_ptr == nullptr) {
@@ -371,79 +374,43 @@ int HVFormat::ApplyParam(int param_id, void* value_ptr)
     }
 }
 
-int HVFormat::ParseRowsFromJson(std::vector<std::string>& rows)
+int HVFormat::RenderSlot(int slot_index, std::string& rendered_text)
 {
-    rows.clear();
-    try {
-        nlohmann::json root_json = nlohmann::json::parse(rules_json_.empty() ? "{\"rows\":[]}" : rules_json_);
-        if (!root_json.is_object() || !root_json.contains("rows") || !root_json["rows"].is_array()) {
-            error_message_key_ = "msg.invalid_rows_json";
-            return ALGORITHM_RUN_ERROR;
-        }
+    rendered_text.clear();
 
-        for (const auto& row_json : root_json["rows"]) {
-            if (!row_json.is_string()) {
-                error_message_key_ = "msg.invalid_rows_json";
-                return ALGORITHM_RUN_ERROR;
-            }
-            rows.push_back(row_json.get<std::string>());
-        }
+    const std::string* label = nullptr;
+    switch (slot_index) {
+    case 0:
+        label = &slot0_label_;
+        break;
+    case 1:
+        label = &slot1_label_;
+        break;
+    case 2:
+        label = &slot2_label_;
+        break;
+    default:
+        return INVALID_PARAMS_NUM;
+    }
+
+    if (label == nullptr || label->empty()) {
         return SUCCESS;
     }
-    catch (...) {
-        error_message_key_ = "msg.invalid_rules_json";
+
+    NodeHostDataView data_view;
+    const int read_ret = ReadInputSlotValue(slot_index, data_view);
+    if (read_ret != SUCCESS) {
+        error_message_key_ = "msg.input_not_bound";
         return ALGORITHM_RUN_ERROR;
     }
-}
 
-int HVFormat::RenderRow(const std::string& row_template, std::string& rendered_row)
-{
-    rendered_row.clear();
-    size_t cursor = 0;
-    while (cursor < row_template.size()) {
-        const size_t placeholder_begin = row_template.find("${", cursor);
-        if (placeholder_begin == std::string::npos) {
-            rendered_row.append(row_template.substr(cursor));
-            return SUCCESS;
-        }
-
-        rendered_row.append(row_template.substr(cursor, placeholder_begin - cursor));
-        const size_t placeholder_end = row_template.find('}', placeholder_begin + 2);
-        if (placeholder_end == std::string::npos) {
-            error_message_key_ = "msg.invalid_placeholder";
-            return ALGORITHM_RUN_ERROR;
-        }
-
-        const std::string placeholder_body =
-            row_template.substr(placeholder_begin + 2, placeholder_end - (placeholder_begin + 2));
-        const size_t format_separator = placeholder_body.find('|');
-        const std::string slot_text =
-            format_separator == std::string::npos ? placeholder_body : placeholder_body.substr(0, format_separator);
-        const std::string format_text =
-            format_separator == std::string::npos ? std::string() : placeholder_body.substr(format_separator + 1);
-
-        if (slot_text.size() != 1 || slot_text[0] < '0' || slot_text[0] >= '0' + kInputSlotCount) {
-            error_message_key_ = "msg.invalid_slot_index";
-            return ALGORITHM_RUN_ERROR;
-        }
-
-        NodeHostDataView data_view;
-        const int slot_index = slot_text[0] - '0';
-        const int read_ret = ReadInputSlotValue(slot_index, data_view);
-        if (read_ret != SUCCESS) {
-            error_message_key_ = "msg.input_not_bound";
-            return ALGORITHM_RUN_ERROR;
-        }
-
-        std::string rendered_value;
-        const int format_ret = FormatSlotValue(data_view, format_text, rendered_value);
-        if (format_ret != SUCCESS) {
-            return format_ret;
-        }
-        rendered_row.append(rendered_value);
-        cursor = placeholder_end + 1;
+    std::string rendered_value;
+    const int format_ret = FormatSlotValue(data_view, rendered_value);
+    if (format_ret != SUCCESS) {
+        return format_ret;
     }
 
+    rendered_text = *label + rendered_value;
     return SUCCESS;
 }
 
@@ -461,81 +428,32 @@ int HVFormat::ReadInputSlotValue(int slot_index, NodeHostDataView& data_view) co
     return SUCCESS;
 }
 
-int HVFormat::FormatSlotValue(
-    const NodeHostDataView& data_view,
-    const std::string& format_text,
-    std::string& rendered_value)
+int HVFormat::FormatSlotValue(const NodeHostDataView& data_view, std::string& rendered_value)
 {
     rendered_value.clear();
     switch (data_view.type) {
     case HV_INT:
-        return FormatIntegerValue(*static_cast<const int*>(data_view.data), format_text, rendered_value);
+        rendered_value = std::to_string(*static_cast<const int*>(data_view.data));
+        return SUCCESS;
     case HV_LONG:
-        return FormatIntegerValue(*static_cast<const long*>(data_view.data), format_text, rendered_value);
+        rendered_value = std::to_string(*static_cast<const long*>(data_view.data));
+        return SUCCESS;
     case HV_FLOAT:
-        return FormatFloatingValue(*static_cast<const float*>(data_view.data), format_text, rendered_value);
+        rendered_value = FormatFloatingDefault(*static_cast<const float*>(data_view.data));
+        return SUCCESS;
     case HV_DOUBLE:
-        return FormatFloatingValue(*static_cast<const double*>(data_view.data), format_text, rendered_value);
+        rendered_value = FormatFloatingDefault(*static_cast<const double*>(data_view.data));
+        return SUCCESS;
     case HV_BOOLEAN:
-        if (!format_text.empty()) {
-            error_message_key_ = "msg.invalid_string_format";
-            return ALGORITHM_RUN_ERROR;
-        }
         rendered_value = *static_cast<const bool*>(data_view.data) ? "true" : "false";
         return SUCCESS;
     case HV_STRING:
-        if (!format_text.empty()) {
-            error_message_key_ = "msg.invalid_string_format";
-            return ALGORITHM_RUN_ERROR;
-        }
         rendered_value = *static_cast<const std::string*>(data_view.data);
         return SUCCESS;
     default:
         error_message_key_ = "msg.unsupported_type";
         return ALGORITHM_RUN_ERROR;
     }
-}
-
-int HVFormat::FormatIntegerValue(long long value, const std::string& format_text, std::string& rendered_value)
-{
-    if (format_text.empty()) {
-        rendered_value = FormatIntegerDefault(value);
-        return SUCCESS;
-    }
-    if (!ParseIntegerFormat(format_text)) {
-        error_message_key_ = "msg.invalid_format";
-        return ALGORITHM_RUN_ERROR;
-    }
-
-    char buffer[128] = { 0 };
-    const int written = std::snprintf(buffer, sizeof(buffer), format_text.c_str(), static_cast<int>(value));
-    if (written < 0) {
-        error_message_key_ = "msg.invalid_format";
-        return ALGORITHM_RUN_ERROR;
-    }
-    rendered_value.assign(buffer, static_cast<size_t>(written));
-    return SUCCESS;
-}
-
-int HVFormat::FormatFloatingValue(double value, const std::string& format_text, std::string& rendered_value)
-{
-    if (format_text.empty()) {
-        rendered_value = FormatFloatingDefault(value);
-        return SUCCESS;
-    }
-    if (!ParseFloatingFormat(format_text)) {
-        error_message_key_ = "msg.invalid_format";
-        return ALGORITHM_RUN_ERROR;
-    }
-
-    char buffer[128] = { 0 };
-    const int written = std::snprintf(buffer, sizeof(buffer), format_text.c_str(), value);
-    if (written < 0) {
-        error_message_key_ = "msg.invalid_format";
-        return ALGORITHM_RUN_ERROR;
-    }
-    rendered_value.assign(buffer, static_cast<size_t>(written));
-    return SUCCESS;
 }
 
 int HVFormat::Fail(int status, const std::string& message_key)
