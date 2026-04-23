@@ -86,14 +86,11 @@ bool BuildMaskedDepthFromRoi(
 
     out_depth = ImageDataInfoDepth(
         src_depth.width,
-        src_depth.height,
-        src_depth.data_type,
-        src_depth.z_resolution,
-        src_depth.z_offset);
+        src_depth.height);
 
     const size_t pixel_size = src_depth.getPixelSize();
-    const unsigned char* src_data = static_cast<const unsigned char*>(src_depth.image_data);
-    unsigned char* dst_data = static_cast<unsigned char*>(out_depth.image_data);
+    const unsigned char* src_data = reinterpret_cast<const unsigned char*>(src_depth.image_data);
+    unsigned char* dst_data = reinterpret_cast<unsigned char*>(out_depth.image_data);
     for (size_t row = 0; row < src_depth.height; ++row) {
         for (size_t col = 0; col < src_depth.width; ++col) {
             if (mask.at<unsigned char>(static_cast<int>(row), static_cast<int>(col)) == 0) {

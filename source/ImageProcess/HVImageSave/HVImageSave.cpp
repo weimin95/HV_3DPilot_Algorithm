@@ -191,6 +191,7 @@ cv::Mat ConvertDepthToSavableMat(const ImageDataInfoDepth& depth_image)
 
     for (size_t row = 0; row < depth_image.height; ++row) {
         for (size_t col = 0; col < depth_image.width; ++col) {
+            // 深度图固定使用每像素 xyz 三个 float，这里取 z 通道做可视化保存。
             const float value = depth_image.getDepthAt(row, col);
             depth_32f.at<float>(static_cast<int>(row), static_cast<int>(col)) = value;
             if (std::isfinite(value) && value > 0.0f) {
