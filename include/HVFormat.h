@@ -14,7 +14,9 @@ public:
 
     int init() override;
     int run() override;
-    int set_algorithm_params(const std::vector<void*>& params, const std::vector<int>& paramID = std::vector<int>()) override;
+    int set_algorithm_params(
+        const std::vector<void*>& params,
+        const std::vector<int>& paramID = std::vector<int>()) override;
 
     std::vector<void*> get_current_params() override;
     std::vector<void*> get_algorithm_result() override;
@@ -43,19 +45,23 @@ public:
     void set_host_services(NodeHostServices* host_services) override;
 
 private:
+    struct ParsedReferenceToken {
+        int node_id = -1;
+        std::string node_alias;
+        int result_id = -1;
+        std::string output_name;
+        int expected_type = -1;
+    };
+
     int ApplyParam(int param_id, void* value_ptr);
-    int RenderSlot(int slot_index, std::string& rendered_text);
-    int ReadInputSlotValue(int slot_index, NodeHostDataView& data_view) const;
-    int FormatSlotValue(const NodeHostDataView& data_view, std::string& rendered_value);
+    int RenderFormatText();
+    int ParseReferenceToken(const std::string& token_text, ParsedReferenceToken& out_token);
+    int ResolveReferenceToken(const ParsedReferenceToken& token, std::string& rendered_value);
+    int FormatResolvedValue(const NodeHostDataView& data_view, std::string& rendered_value);
     int Fail(int status, const std::string& message_key);
 
 private:
-    std::string slot0_label_;
-    std::string slot1_label_;
-    std::string slot2_label_;
-    std::string segment_separator_ = ";";
-    std::string output_ending_ = "\r\n";
-
+    std::string format_text_;
     std::string formatted_text_;
     int execute_status_ = NODE_STATUS_NOT_RUN;
     long run_time_ = 0;
