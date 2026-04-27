@@ -45,11 +45,20 @@ public:
     void set_host_services(NodeHostServices* host_services) override;
 
 private:
+    enum class ReferenceKind {
+        NodeResult,
+        GlobalVariable
+    };
+
     struct ParsedReferenceToken {
+        ReferenceKind kind = ReferenceKind::NodeResult;
         int node_id = -1;
         std::string node_alias;
         int result_id = -1;
         std::string output_name;
+        int global_var_token_id = -1;
+        int global_var_id = -1;
+        std::string global_var_name;
         int expected_type = -1;
     };
 
@@ -58,6 +67,8 @@ private:
     int ParseReferenceToken(const std::string& token_text, ParsedReferenceToken& out_token);
     int ResolveReferenceToken(const ParsedReferenceToken& token, std::string& rendered_value);
     int FormatResolvedValue(const NodeHostDataView& data_view, std::string& rendered_value);
+    int FormatHostValue(const NodeHostValue& value, std::string& rendered_value);
+    int FormatValue(int type, const void* data, std::string& rendered_value);
     int Fail(int status, const std::string& message_key);
 
 private:

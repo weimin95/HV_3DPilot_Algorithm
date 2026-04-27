@@ -1,5 +1,6 @@
 #include "HVFormat.h"
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
@@ -93,6 +94,15 @@ std::string FormatFloatingFixed4(double value)
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(4) << value;
     return oss.str();
+}
+
+bool IsGlobalVariableTokenHead(const std::string& token_head)
+{
+    // 前端可能传 UTF-8，部分手工入口仍按本机 ANSI/GBK 传入，这里同时兼容两种字节序列。
+    static const std::string kGlobalVariableUtf8 =
+        "\xE5\x85\xA8\xE5\xB1\x80\xE5\x8F\x98\xE9\x87\x8F";
+    static const std::string kGlobalVariableGbk = "\xC8\xAB\xBE\xD6\xB1\xE4\xC1\xBF";
+    return token_head == kGlobalVariableUtf8 || token_head == kGlobalVariableGbk;
 }
 
 }  // namespace
@@ -359,6 +369,39 @@ int HVFormat::ParseReferenceToken(const std::string& token_text, ParsedReference
         : token_text.find('.', second_dot + 1);
     const size_t last_dot = token_text.find_last_of('.');
 
+    if (first_dot != std::string::npos && IsGlobalVariableTokenHead(token_text.substr(0, first_dot))) {
+        if (second_dot == std::string::npos ||
+            third_dot == std::string::npos ||
+            token_text.find('.', third_dot + 1) != std::string::npos) {
+            error_message_key_ = "msg.invalid_token_syntax";
+            return ALGORITHM_RUN_ERROR;
+        }
+
+        int global_var_display_id = -1;
+        const std::string global_var_id_text = token_text.substr(first_dot + 1, second_dot - first_dot - 1);
+        const std::string global_var_name_text = token_text.substr(second_dot + 1, third_dot - second_dot - 1);
+        const std::string type_text = token_text.substr(third_dot + 1);
+        if (!TryParseIntStrict(global_var_id_text, global_var_display_id) || global_var_display_id <= 0) {
+            error_message_key_ = "msg.invalid_token_syntax";
+            return ALGORITHM_RUN_ERROR;
+        }
+
+        out_token.kind = ReferenceKind::GlobalVariable;
+        out_token.global_var_token_id = global_var_display_id;
+        out_token.global_var_id = global_var_display_id;
+        out_token.global_var_name = TrimCopy(global_var_name_text);
+        out_token.expected_type = MapTypeNameToHvType(type_text);
+        if (out_token.global_var_name.empty()) {
+            error_message_key_ = "msg.invalid_token_syntax";
+            return ALGORITHM_RUN_ERROR;
+        }
+        if (out_token.expected_type < 0) {
+            error_message_key_ = "msg.invalid_token_type";
+            return ALGORITHM_RUN_ERROR;
+        }
+        return SUCCESS;
+    }
+
     if (first_dot == std::string::npos ||
         second_dot == std::string::npos ||
         third_dot == std::string::npos ||
@@ -398,6 +441,53 @@ int HVFormat::ParseReferenceToken(const std::string& token_text, ParsedReference
 int HVFormat::ResolveReferenceToken(const ParsedReferenceToken& token, std::string& rendered_value)
 {
     rendered_value.clear();
+
+    if (token.kind == ReferenceKind::GlobalVariable) {
+        const std::vector<NodeHostGlobalVariableInfo> global_infos =
+            host_services_->get_global_variable_infos();
+        auto info_it = std::find_if(
+            global_infos.begin(),
+            global_infos.end(),
+            [&token](const NodeHostGlobalVariableInfo& info) {
+                return info.var_id == token.global_var_token_id && info.var_name == token.global_var_name;
+            });
+        if (info_it == global_infos.end() && token.global_var_token_id > 0) {
+            const int legacy_var_id = token.global_var_token_id - 1;
+            info_it = std::find_if(
+                global_infos.begin(),
+                global_infos.end(),
+                [&token, legacy_var_id](const NodeHostGlobalVariableInfo& info) {
+                    return info.var_id == legacy_var_id && info.var_name == token.global_var_name;
+                });
+        }
+        if (info_it == global_infos.end()) {
+            error_message_key_ = "msg.reference_resolve_failed";
+            return ALGORITHM_RUN_ERROR;
+        }
+        if (info_it->var_type != token.expected_type) {
+            error_message_key_ = "msg.reference_type_mismatch";
+            return ALGORITHM_RUN_ERROR;
+        }
+
+        NodeHostValue global_value;
+        const int resolve_ret = host_services_->get_global_value(info_it->var_id, global_value);
+        if (resolve_ret == GLOBAL_VAR_NOT_EXIST) {
+            error_message_key_ = "msg.reference_resolve_failed";
+            return ALGORITHM_RUN_ERROR;
+        }
+        if (resolve_ret != SUCCESS) {
+            error_message_key_ = "msg.reference_empty";
+            return ALGORITHM_RUN_ERROR;
+        }
+        if (!global_value.has_value || global_value.type != token.expected_type) {
+            error_message_key_ = (!global_value.has_value)
+                ? "msg.reference_empty"
+                : "msg.reference_type_mismatch";
+            return ALGORITHM_RUN_ERROR;
+        }
+
+        return FormatHostValue(global_value, rendered_value);
+    }
 
     NodeHostDataView data_view;
     const int resolve_ret = host_services_->get_upstream_result_by_id(
@@ -441,25 +531,56 @@ int HVFormat::ResolveReferenceToken(const ParsedReferenceToken& token, std::stri
 
 int HVFormat::FormatResolvedValue(const NodeHostDataView& data_view, std::string& rendered_value)
 {
-    rendered_value.clear();
-    switch (data_view.type) {
+    return FormatValue(data_view.type, data_view.data, rendered_value);
+}
+
+int HVFormat::FormatHostValue(const NodeHostValue& value, std::string& rendered_value)
+{
+    switch (value.type) {
     case HV_INT:
-        rendered_value = std::to_string(*static_cast<const int*>(data_view.data));
+        return FormatValue(value.type, &value.int_value, rendered_value);
+    case HV_LONG:
+        return FormatValue(value.type, &value.long_value, rendered_value);
+    case HV_FLOAT:
+        return FormatValue(value.type, &value.float_value, rendered_value);
+    case HV_DOUBLE:
+        return FormatValue(value.type, &value.double_value, rendered_value);
+    case HV_BOOLEAN:
+        return FormatValue(value.type, &value.bool_value, rendered_value);
+    case HV_STRING:
+        return FormatValue(value.type, &value.string_value, rendered_value);
+    default:
+        error_message_key_ = "msg.unsupported_type";
+        return ALGORITHM_RUN_ERROR;
+    }
+}
+
+int HVFormat::FormatValue(int type, const void* data, std::string& rendered_value)
+{
+    rendered_value.clear();
+    if (data == nullptr) {
+        error_message_key_ = "msg.reference_empty";
+        return ALGORITHM_RUN_ERROR;
+    }
+
+    switch (type) {
+    case HV_INT:
+        rendered_value = std::to_string(*static_cast<const int*>(data));
         return SUCCESS;
     case HV_LONG:
-        rendered_value = std::to_string(*static_cast<const long*>(data_view.data));
+        rendered_value = std::to_string(*static_cast<const long*>(data));
         return SUCCESS;
     case HV_FLOAT:
-        rendered_value = FormatFloatingFixed4(*static_cast<const float*>(data_view.data));
+        rendered_value = FormatFloatingFixed4(*static_cast<const float*>(data));
         return SUCCESS;
     case HV_DOUBLE:
-        rendered_value = FormatFloatingFixed4(*static_cast<const double*>(data_view.data));
+        rendered_value = FormatFloatingFixed4(*static_cast<const double*>(data));
         return SUCCESS;
     case HV_BOOLEAN:
-        rendered_value = *static_cast<const bool*>(data_view.data) ? "true" : "false";
+        rendered_value = *static_cast<const bool*>(data) ? "true" : "false";
         return SUCCESS;
     case HV_STRING:
-        rendered_value = *static_cast<const std::string*>(data_view.data);
+        rendered_value = *static_cast<const std::string*>(data);
         return SUCCESS;
     default:
         error_message_key_ = "msg.unsupported_type";
