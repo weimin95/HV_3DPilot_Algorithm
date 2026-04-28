@@ -9,6 +9,7 @@
 #include <json.hpp>
 
 #include "HVI18n.h"
+#include "HVNodeReferenceResolver.h"
 
 namespace {
 
@@ -103,6 +104,35 @@ bool IsGlobalVariableTokenHead(const std::string& token_head)
         "\xE5\x85\xA8\xE5\xB1\x80\xE5\x8F\x98\xE9\x87\x8F";
     static const std::string kGlobalVariableGbk = "\xC8\xAB\xBE\xD6\xB1\xE4\xC1\xBF";
     return token_head == kGlobalVariableUtf8 || token_head == kGlobalVariableGbk;
+}
+
+const char* ErrorToFormatMessageKey(hvref::ResolveError error)
+{
+    switch (error) {
+    case hvref::ResolveError::InvalidSyntax:
+        return "msg.invalid_token_syntax";
+    case hvref::ResolveError::InvalidTypeTag:
+        return "msg.invalid_token_type";
+    case hvref::ResolveError::ResolveFailed:
+        return "msg.reference_resolve_failed";
+    case hvref::ResolveError::NodeNotFound:
+        return "msg.reference_node_not_found";
+    case hvref::ResolveError::NotReachable:
+        return "msg.reference_not_reachable";
+    case hvref::ResolveError::OutputNotFound:
+        return "msg.reference_output_not_found";
+    case hvref::ResolveError::Unavailable:
+        return "msg.reference_unavailable";
+    case hvref::ResolveError::TypeMismatch:
+        return "msg.reference_type_mismatch";
+    case hvref::ResolveError::EmptyValue:
+        return "msg.reference_empty";
+    case hvref::ResolveError::UnsupportedType:
+        return "msg.unsupported_type";
+    case hvref::ResolveError::None:
+    default:
+        return "msg.reference_resolve_failed";
+    }
 }
 
 }  // namespace
@@ -338,16 +368,26 @@ int HVFormat::RenderFormatText()
 
         const std::string token_text =
             format_text_.substr(token_begin + 1, token_end - token_begin - 1);
-        ParsedReferenceToken token;
-        const int parse_ret = ParseReferenceToken(token_text, token);
-        if (parse_ret != SUCCESS) {
-            return parse_ret;
+        hvref::ParsedReferenceToken token;
+        hvref::ResolveError parse_error = hvref::ParseReferenceToken(token_text, token);
+        if (parse_error != hvref::ResolveError::None) {
+            error_message_key_ = ErrorToFormatMessageKey(parse_error);
+            return ALGORITHM_RUN_ERROR;
+        }
+
+        hvref::ResolvedReferenceValue resolved_value;
+        hvref::ResolveError resolve_error =
+            hvref::ResolveReferenceValue(*host_services_, token, resolved_value);
+        if (resolve_error != hvref::ResolveError::None) {
+            error_message_key_ = ErrorToFormatMessageKey(resolve_error);
+            return ALGORITHM_RUN_ERROR;
         }
 
         std::string rendered_value;
-        const int resolve_ret = ResolveReferenceToken(token, rendered_value);
-        if (resolve_ret != SUCCESS) {
-            return resolve_ret;
+        hvref::ResolveError format_error = hvref::FormatReferenceValue(resolved_value, rendered_value);
+        if (format_error != hvref::ResolveError::None) {
+            error_message_key_ = ErrorToFormatMessageKey(format_error);
+            return ALGORITHM_RUN_ERROR;
         }
         formatted_text_ += rendered_value;
         current_pos = token_end + 1;

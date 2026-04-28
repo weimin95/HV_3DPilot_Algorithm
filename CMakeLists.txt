@@ -57,6 +57,7 @@ link_directories(${PCL_LIBRARY_DIRS})
 
 # Build common static library
 file(GLOB_RECURSE COMMON_SRC "${CMAKE_SOURCE_DIR}/source/common/*.cpp")
+list(APPEND COMMON_SRC "${CMAKE_SOURCE_DIR}/third_party/tinyexpr/tinyexpr.cpp")
 file(GLOB_RECURSE COMMON_HEADERS
     "${CMAKE_SOURCE_DIR}/source/common/*.h"
     "${CMAKE_SOURCE_DIR}/source/common/*.hpp"
@@ -66,6 +67,10 @@ if(COMMON_SRC)
     message(STATUS "Building Common Library with ${COMMON_SRC}")
     add_library(common_lib STATIC ${COMMON_SRC} ${COMMON_HEADERS})
 
+    if(MSVC)
+        target_compile_options(common_lib PRIVATE /source-charset:utf-8)
+    endif()
+
     target_link_libraries(common_lib PUBLIC
         ${OpenCV_LIBS}
         Open3D::Open3D
@@ -74,6 +79,7 @@ if(COMMON_SRC)
 
     target_include_directories(common_lib PUBLIC
         ${CMAKE_SOURCE_DIR}/source/common
+        ${CMAKE_SOURCE_DIR}/third_party/tinyexpr
     )
 
     source_group("Header Files" FILES ${COMMON_HEADERS})
@@ -122,7 +128,7 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
             target_compile_options(${PLUGIN_NAME} PRIVATE /bigobj)
         endif()
 
-        if(MSVC AND (${PLUGIN_NAME} STREQUAL "HVImageEdge" OR ${PLUGIN_NAME} STREQUAL "HVImageRoiCrop" OR ${PLUGIN_NAME} STREQUAL "HVRoiCreate" OR ${PLUGIN_NAME} STREQUAL "HVImageSave" OR ${PLUGIN_NAME} STREQUAL "ConditionalBranch" OR ${PLUGIN_NAME} STREQUAL "HVSendData" OR ${PLUGIN_NAME} STREQUAL "Format" OR ${PLUGIN_NAME} STREQUAL "ConditionCheck"))
+        if(MSVC AND (${PLUGIN_NAME} STREQUAL "HVImageEdge" OR ${PLUGIN_NAME} STREQUAL "HVImageRoiCrop" OR ${PLUGIN_NAME} STREQUAL "HVRoiCreate" OR ${PLUGIN_NAME} STREQUAL "HVImageSave" OR ${PLUGIN_NAME} STREQUAL "ConditionalBranch" OR ${PLUGIN_NAME} STREQUAL "HVSendData" OR ${PLUGIN_NAME} STREQUAL "Format" OR ${PLUGIN_NAME} STREQUAL "ConditionCheck" OR ${PLUGIN_NAME} STREQUAL "VariableCalculate"))
             # 新插件源码保存为 UTF-8；执行字符集沿用当前工程默认，保持与现有插件中文返回值一致。
             target_compile_options(${PLUGIN_NAME} PRIVATE /source-charset:utf-8)
         endif()
