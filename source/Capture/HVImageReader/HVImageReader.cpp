@@ -3,7 +3,10 @@
 #include "json.hpp"
 #include "HVI18n.h"
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 
 namespace {
@@ -13,12 +16,48 @@ const hvi18n::Dictionary kTexts = {
     { "input.image_path.name", { "图像路径", "image path" } },
     { "input.image_path.desc", { "图像文件路径", "Image file path" } },
     { "output.image.name", { "输出图像", "output image" } },
+    { "output.depth.name", { "输出深度图", "output depth image" } },
     { "msg.read_failed", { "读取图像失败", "Read image failed" } },
     { "msg.read_success", { "读取图像成功", "Read image success" } }
 };
 
 std::string Tr(int language, const std::string& key) {
     return hvi18n::Translate(kTexts, key, language);
+}
+
+std::string LowerExtension(const std::string& path)
+{
+    std::string extension = std::filesystem::u8path(path).extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return extension;
+}
+
+bool IsTiffPath(const std::string& path)
+{
+    const std::string extension = LowerExtension(path);
+    return extension == ".tif" || extension == ".tiff";
+}
+
+bool IsDepthTiffMat(const std::string& path, const cv::Mat& image)
+{
+    return IsTiffPath(path) && image.type() == CV_32FC3;
+}
+
+ImageDataInfoDepth DepthFromXyzMat(const cv::Mat& image)
+{
+    ImageDataInfoDepth depth(static_cast<size_t>(image.cols), static_cast<size_t>(image.rows));
+    for (int row = 0; row < image.rows; ++row) {
+        for (int col = 0; col < image.cols; ++col) {
+            const cv::Vec3f xyz = image.at<cv::Vec3f>(row, col);
+            depth.setPointAt(
+                static_cast<size_t>(row),
+                static_cast<size_t>(col),
+                HVPoint3D(xyz[0], xyz[1], xyz[2]));
+        }
+    }
+    return depth;
 }
 
 }  // namespace
@@ -46,6 +85,8 @@ int HVImageReader::run()
 
     execute_status = NODE_STATUS_RUNNING;
     error_msg.clear();
+    resultImg.reset();
+    resultDepth.reset();
 	cv::Mat img = cv::imread(image_path, cv::IMREAD_UNCHANGED);
 	if (img.empty()) 
 	{
@@ -54,7 +95,11 @@ int HVImageReader::run()
 		return ALGORITHM_RUN_ERROR;
 	}
     execute_status = SUCCESS;
-	resultImg = std::make_shared<ImageDataInfo2D>(ImageConverter::FromMat(img));
+    if (IsDepthTiffMat(image_path, img)) {
+        resultDepth = std::make_shared<ImageDataInfoDepth>(DepthFromXyzMat(img));
+    } else {
+	    resultImg = std::make_shared<ImageDataInfo2D>(ImageConverter::FromMat(img));
+    }
 
 	auto end = std::chrono::high_resolution_clock::now();
 	run_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -79,8 +124,8 @@ int HVImageReader::set_algorithm_params(const std::vector<void*>& params, const 
 std::vector<void*> HVImageReader::get_algorithm_result()
 {
 	if (execute_status == SUCCESS)
-	    return { &resultImg, &execute_status };
-	return { nullptr, &execute_status };
+	    return { &resultImg, &resultDepth, &execute_status };
+	return { nullptr, nullptr, &execute_status };
 }
 
 std::vector<int> HVImageReader::get_algorithm_input_params_type()
@@ -90,7 +135,7 @@ std::vector<int> HVImageReader::get_algorithm_input_params_type()
 
 std::vector<int> HVImageReader::get_algorithm_output_params_type()
 {
-	return { HV_IMAGEDATAINFO2D, HV_INT };
+	return { HV_IMAGEDATAINFO2D, HV_IMAGEDATAINFODEPTH, HV_INT };
 }
 
 std::vector<std::string> HVImageReader::get_algorithm_input_params_name()
@@ -102,6 +147,7 @@ std::vector<std::string> HVImageReader::get_algorithm_output_params_name()
 {
 	return {
         Tr(language_, "output.image.name"),
+        Tr(language_, "output.depth.name"),
         language_ == static_cast<int>(UIPilotLanguage::EN_US) ? "Execute status" : "运行状态"
     };
 }
