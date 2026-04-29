@@ -4,6 +4,7 @@ project(HV_3DPilot_Algorithm)
 # Common configuration
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+option(HV_3DPILOT_ALGORITHM_BUILD_TESTS "Build algorithm plugin tests" OFF)
 
 # OpenCV
 set(OpenCV_DIR "D:/proj/3rdParty/opencv410/build")
@@ -187,4 +188,25 @@ if(EXISTS "${ICON_SOURCE_ROOT}")
             -P "${CMAKE_SOURCE_DIR}/cmake/CopyIcons.cmake"
         COMMENT "Copy plugin icon resources to runtime plugins/icons"
     )
+endif()
+
+if(HV_3DPILOT_ALGORITHM_BUILD_TESTS)
+    add_executable(HVImageReaderDepthTest
+        ${CMAKE_SOURCE_DIR}/tests/HVImageReaderDepthTest.cpp
+        ${CMAKE_SOURCE_DIR}/source/Capture/HVImageReader/HVImageReader.cpp
+    )
+
+    if(MSVC)
+        target_compile_options(HVImageReaderDepthTest PRIVATE /source-charset:utf-8)
+    endif()
+
+    target_link_libraries(HVImageReaderDepthTest PRIVATE
+        ${OpenCV_LIBS}
+        Open3D::Open3D
+        ${PCL_LIBRARIES}
+    )
+
+    if(TARGET common_lib)
+        target_link_libraries(HVImageReaderDepthTest PRIVATE common_lib)
+    endif()
 endif()

@@ -56,6 +56,7 @@ public:
 private:
 	std::string image_path = "";
     std::shared_ptr<ImageDataInfo2D> resultImg;
+    std::shared_ptr<ImageDataInfoDepth> resultDepth;
     long run_time = -1;
     std::string error_msg;
     int language_ = static_cast<int>(UIPilotLanguage::ZH_CN);
