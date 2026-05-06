@@ -382,7 +382,7 @@ std::vector<bool> HVImageSave::get_algorithm_input_params_bindable()
 {
     // 这里返回 false 只作为默认输入模式提示。
     // 图像/深度图/点云输入仍然可以在画布中手动绑定。
-    return std::vector<bool>(13, false);
+    return { false, true, true, true, false, false, false, false, false, false, false, false, false };
 }
 
 std::vector<ParamMetadata> HVImageSave::get_algorithm_input_params_metadata()
