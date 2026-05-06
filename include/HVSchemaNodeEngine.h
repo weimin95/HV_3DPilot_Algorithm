@@ -416,6 +416,12 @@ public:
         return *this;
     }
 
+    HVInputField& SetDirectoryPathConstraint()
+    {
+        constraint_type_ = CONSTRAINT_DIRECTORY_PATH;
+        return *this;
+    }
+
     HVInputField& AddDependency(const ParamDependency& dependency)
     {
         dependencies_.push_back(dependency);

@@ -247,6 +247,7 @@ std::vector<ParamMetadata> HVImageRoiCrop::get_algorithm_input_params_metadata()
     image_meta.param_type = HV_IMAGEDATAINFO2D;
     image_meta.constraint_type = CONSTRAINT_NONE;
     image_meta.param_group = PARAM_GROUP_BASIC;
+    image_meta.dependencies.push_back(ParamDependency(0, DEPENDS_ON_EQUALS, { "0" }));
     metadata_list.push_back(image_meta);
 
     ParamMetadata depth_meta;
@@ -255,6 +256,7 @@ std::vector<ParamMetadata> HVImageRoiCrop::get_algorithm_input_params_metadata()
     depth_meta.param_type = HV_IMAGEDATAINFODEPTH;
     depth_meta.constraint_type = CONSTRAINT_NONE;
     depth_meta.param_group = PARAM_GROUP_BASIC;
+    depth_meta.dependencies.push_back(ParamDependency(0, DEPENDS_ON_EQUALS, { "1" }));
     metadata_list.push_back(depth_meta);
 
     ParamMetadata cloud_meta;
@@ -263,6 +265,7 @@ std::vector<ParamMetadata> HVImageRoiCrop::get_algorithm_input_params_metadata()
     cloud_meta.param_type = HV_POINTCLOUD;
     cloud_meta.constraint_type = CONSTRAINT_NONE;
     cloud_meta.param_group = PARAM_GROUP_BASIC;
+    cloud_meta.dependencies.push_back(ParamDependency(0, DEPENDS_ON_EQUALS, { "2" }));
     metadata_list.push_back(cloud_meta);
 
     ParamMetadata roi_meta;

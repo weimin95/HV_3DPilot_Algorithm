@@ -416,6 +416,7 @@ std::vector<ParamMetadata> HVImageSave::get_algorithm_input_params_metadata()
     metadata_list[4].param_name = Tr(language_, "input.output_dir.name");
     metadata_list[4].param_description = Tr(language_, "input.output_dir.desc");
     metadata_list[4].param_type = HV_STRING;
+    metadata_list[4].constraint_type = CONSTRAINT_DIRECTORY_PATH;
 
     metadata_list[5].param_name = Tr(language_, "input.prefix.name");
     metadata_list[5].param_description = Tr(language_, "input.prefix.desc");
