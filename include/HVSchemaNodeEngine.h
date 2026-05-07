@@ -164,6 +164,180 @@ struct HVFieldJsonTraits<std::string> {
 };
 
 template <>
+struct HVFieldJsonTraits<HVStringList> {
+    static constexpr bool kSupported = true;
+
+    static bool Serialize(const HVStringList& value, nlohmann::json& out_json)
+    {
+        out_json = nlohmann::json::array();
+        for (const auto& str : value.values) {
+            out_json.push_back(str);
+        }
+        return true;
+    }
+
+    static bool Deserialize(const nlohmann::json& value_json, HVStringList& out_value)
+    {
+        if (!value_json.is_array()) {
+            return false;
+        }
+        out_value.values.clear();
+        for (const auto& item : value_json) {
+            if (!item.is_string()) {
+                return false;
+            }
+            out_value.values.push_back(item.get<std::string>());
+        }
+        return true;
+    }
+};
+
+template <>
+struct HVFieldJsonTraits<HVGeometryList> {
+    static constexpr bool kSupported = true;
+
+    static bool Serialize(const HVGeometryList& value, nlohmann::json& out_json)
+    {
+        out_json = nlohmann::json::array();
+        for (const auto& geometry : value.values) {
+            nlohmann::json geom_json;
+            geom_json["geometry_id"] = geometry.geometry_id_;
+            geom_json["geometry_name"] = geometry.geometry_name_;
+            geom_json["shape_type"] = static_cast<int>(geometry.shape_type_);
+
+            nlohmann::json shape_json;
+            switch (geometry.shape_type_) {
+            case HVGeometryShapeType::Point:
+                shape_json["x"] = geometry.AsPoint().x;
+                shape_json["y"] = geometry.AsPoint().y;
+                break;
+            case HVGeometryShapeType::LineSegment:
+                shape_json["start_point"]["x"] = geometry.AsLineSegment().start_point_.x;
+                shape_json["start_point"]["y"] = geometry.AsLineSegment().start_point_.y;
+                shape_json["end_point"]["x"] = geometry.AsLineSegment().end_point_.x;
+                shape_json["end_point"]["y"] = geometry.AsLineSegment().end_point_.y;
+                break;
+            case HVGeometryShapeType::Rectangle:
+                shape_json["x"] = geometry.AsRect().x_;
+                shape_json["y"] = geometry.AsRect().y_;
+                shape_json["width"] = geometry.AsRect().width_;
+                shape_json["height"] = geometry.AsRect().height_;
+                break;
+            case HVGeometryShapeType::RotatedRectangle:
+                shape_json["center"]["x"] = geometry.AsRotatedRect().center_.x;
+                shape_json["center"]["y"] = geometry.AsRotatedRect().center_.y;
+                shape_json["width"] = geometry.AsRotatedRect().width_;
+                shape_json["height"] = geometry.AsRotatedRect().height_;
+                shape_json["angle_deg"] = geometry.AsRotatedRect().angle_deg_;
+                break;
+            case HVGeometryShapeType::Box:
+                shape_json["center"]["x"] = geometry.AsBox().center_.x;
+                shape_json["center"]["y"] = geometry.AsBox().center_.y;
+                shape_json["center"]["z"] = geometry.AsBox().center_.z;
+                shape_json["length"] = geometry.AsBox().length_;
+                shape_json["width"] = geometry.AsBox().width_;
+                shape_json["height"] = geometry.AsBox().height_;
+                break;
+            case HVGeometryShapeType::RotatedBox:
+                shape_json["center"]["x"] = geometry.AsRotatedBox().center_.x;
+                shape_json["center"]["y"] = geometry.AsRotatedBox().center_.y;
+                shape_json["center"]["z"] = geometry.AsRotatedBox().center_.z;
+                shape_json["length"] = geometry.AsRotatedBox().length_;
+                shape_json["width"] = geometry.AsRotatedBox().width_;
+                shape_json["height"] = geometry.AsRotatedBox().height_;
+                shape_json["orientation"]["roll_deg"] = geometry.AsRotatedBox().orientation_.roll_deg_;
+                shape_json["orientation"]["pitch_deg"] = geometry.AsRotatedBox().orientation_.pitch_deg_;
+                shape_json["orientation"]["yaw_deg"] = geometry.AsRotatedBox().orientation_.yaw_deg_;
+                break;
+            }
+            geom_json["shape"] = shape_json;
+            out_json.push_back(geom_json);
+        }
+        return true;
+    }
+
+    static bool Deserialize(const nlohmann::json& value_json, HVGeometryList& out_value)
+    {
+        if (!value_json.is_array()) {
+            return false;
+        }
+        out_value.values.clear();
+        for (const auto& item : value_json) {
+            HVGeometryInfo geometry;
+            geometry.geometry_id_ = item.value("geometry_id", -1);
+            geometry.geometry_name_ = item.value("geometry_name", std::string());
+            const auto shape_type = static_cast<HVGeometryShapeType>(
+                item.value("shape_type", 0));
+            const nlohmann::json shape_json = item.value("shape", nlohmann::json::object());
+
+            switch (shape_type) {
+            case HVGeometryShapeType::Point:
+                geometry.SetPoint(HVPoint(
+                    shape_json.value("x", 0.0),
+                    shape_json.value("y", 0.0)));
+                break;
+            case HVGeometryShapeType::LineSegment:
+                geometry.SetLineSegment(HVLineSegment(
+                    HVPoint(
+                        shape_json.value("start_point", nlohmann::json::object()).value("x", 0.0),
+                        shape_json.value("start_point", nlohmann::json::object()).value("y", 0.0)),
+                    HVPoint(
+                        shape_json.value("end_point", nlohmann::json::object()).value("x", 0.0),
+                        shape_json.value("end_point", nlohmann::json::object()).value("y", 0.0))));
+                break;
+            case HVGeometryShapeType::Rectangle:
+                geometry.SetRect(HVRect(
+                    shape_json.value("x", 0.0),
+                    shape_json.value("y", 0.0),
+                    shape_json.value("width", 0.0),
+                    shape_json.value("height", 0.0)));
+                break;
+            case HVGeometryShapeType::RotatedRectangle:
+                geometry.SetRotatedRect(HVRotatedRect(
+                    HVPoint(
+                        shape_json.value("center", nlohmann::json::object()).value("x", 0.0),
+                        shape_json.value("center", nlohmann::json::object()).value("y", 0.0)),
+                    shape_json.value("width", 0.0),
+                    shape_json.value("height", 0.0),
+                    shape_json.value("angle_deg", 0.0)));
+                break;
+            case HVGeometryShapeType::Box:
+                geometry.SetBox(HVBox(
+                    HVPoint3D(
+                        shape_json.value("center", nlohmann::json::object()).value("x", 0.0),
+                        shape_json.value("center", nlohmann::json::object()).value("y", 0.0),
+                        shape_json.value("center", nlohmann::json::object()).value("z", 0.0)),
+                    shape_json.value("length", 0.0),
+                    shape_json.value("width", 0.0),
+                    shape_json.value("height", 0.0)));
+                break;
+            case HVGeometryShapeType::RotatedBox: {
+                const nlohmann::json orientation_json =
+                    shape_json.value("orientation", nlohmann::json::object());
+                geometry.SetRotatedBox(HVRotatedBox(
+                    HVPoint3D(
+                        shape_json.value("center", nlohmann::json::object()).value("x", 0.0),
+                        shape_json.value("center", nlohmann::json::object()).value("y", 0.0),
+                        shape_json.value("center", nlohmann::json::object()).value("z", 0.0)),
+                    shape_json.value("length", 0.0),
+                    shape_json.value("width", 0.0),
+                    shape_json.value("height", 0.0),
+                    HVOrientation3D(
+                        orientation_json.value("roll_deg", 0.0),
+                        orientation_json.value("pitch_deg", 0.0),
+                        orientation_json.value("yaw_deg", 0.0))));
+                break;
+            }
+            default:
+                return false;
+            }
+            out_value.values.push_back(geometry);
+        }
+        return true;
+    }
+};
+
+template <>
 struct HVFieldTypeTraits<int> {
     static constexpr int kType = HV_INT;
 };
@@ -206,6 +380,16 @@ struct HVFieldTypeTraits<std::shared_ptr<HVPointCloud>> {
 template <>
 struct HVFieldTypeTraits<HVGeometryInfo> {
     static constexpr int kType = HV_IMAGEROI;
+};
+
+template <>
+struct HVFieldTypeTraits<HVStringList> {
+    static constexpr int kType = HV_STRING_LIST;
+};
+
+template <>
+struct HVFieldTypeTraits<HVGeometryList> {
+    static constexpr int kType = HV_GEOMETRY_LIST;
 };
 
 // 输入字段的公共抽象基类。

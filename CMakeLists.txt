@@ -129,7 +129,7 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
             target_compile_options(${PLUGIN_NAME} PRIVATE /bigobj)
         endif()
 
-        if(MSVC AND (${PLUGIN_NAME} STREQUAL "HVImageEdge" OR ${PLUGIN_NAME} STREQUAL "HVImageRoiCrop" OR ${PLUGIN_NAME} STREQUAL "HVRoiCreate" OR ${PLUGIN_NAME} STREQUAL "HVImageSave" OR ${PLUGIN_NAME} STREQUAL "ConditionalBranch" OR ${PLUGIN_NAME} STREQUAL "HVSendData" OR ${PLUGIN_NAME} STREQUAL "Format" OR ${PLUGIN_NAME} STREQUAL "ConditionCheck" OR ${PLUGIN_NAME} STREQUAL "VariableCalculate"))
+        if(MSVC AND (${PLUGIN_NAME} STREQUAL "HVImageEdge" OR ${PLUGIN_NAME} STREQUAL "HVImageRoiCrop" OR ${PLUGIN_NAME} STREQUAL "HVRoiCreate" OR ${PLUGIN_NAME} STREQUAL "HVImageSave" OR ${PLUGIN_NAME} STREQUAL "HVImageTextDisplay" OR ${PLUGIN_NAME} STREQUAL "ConditionalBranch" OR ${PLUGIN_NAME} STREQUAL "HVSendData" OR ${PLUGIN_NAME} STREQUAL "Format" OR ${PLUGIN_NAME} STREQUAL "ConditionCheck" OR ${PLUGIN_NAME} STREQUAL "VariableCalculate"))
             # 新插件源码保存为 UTF-8；执行字符集沿用当前工程默认，保持与现有插件中文返回值一致。
             target_compile_options(${PLUGIN_NAME} PRIVATE /source-charset:utf-8)
         endif()
@@ -208,5 +208,17 @@ if(HV_3DPILOT_ALGORITHM_BUILD_TESTS)
 
     if(TARGET common_lib)
         target_link_libraries(HVImageReaderDepthTest PRIVATE common_lib)
+    endif()
+
+    add_executable(HVSchemaJsonTraitsTest
+        ${CMAKE_SOURCE_DIR}/tests/HVSchemaJsonTraitsTest.cpp
+    )
+
+    if(MSVC)
+        target_compile_options(HVSchemaJsonTraitsTest PRIVATE /source-charset:utf-8)
+    endif()
+
+    if(TARGET common_lib)
+        target_link_libraries(HVSchemaJsonTraitsTest PRIVATE common_lib)
     endif()
 endif()
