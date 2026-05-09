@@ -231,6 +231,19 @@ if(HV_3DPILOT_ALGORITHM_BUILD_TESTS)
         target_link_libraries(HVSchemaJsonTraitsTest PRIVATE common_lib)
     endif()
 
+    add_executable(HVVariableCalculateTest
+        ${CMAKE_SOURCE_DIR}/tests/HVVariableCalculateTest.cpp
+        ${CMAKE_SOURCE_DIR}/source/LogicTool/VariableCalculate/HVVariableCalculate.cpp
+    )
+
+    if(MSVC)
+        target_compile_options(HVVariableCalculateTest PRIVATE /source-charset:utf-8)
+    endif()
+
+    if(TARGET common_lib)
+        target_link_libraries(HVVariableCalculateTest PRIVATE common_lib)
+    endif()
+
     add_executable(HVHandEyeCalibrationTest
         ${CMAKE_SOURCE_DIR}/tests/HVHandEyeCalibrationTest.cpp
         ${CMAKE_SOURCE_DIR}/source/Calibration/HandEyeCalibrationNode/HVHandEyeCalibration.cpp

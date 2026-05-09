@@ -12,10 +12,11 @@ namespace {
 
 const hvi18n::Dictionary kTexts = {
     { "algorithm.display", { "变量计算", "Variable calculate" } },
-    { "input.expression.name", { "表达式", "Expression" } },
-    { "input.expression.desc", { "支持常量、数学函数，以及 <node_id.result_id.type> 或 <全局变量.id.name.type> 引用", "Expression with constants, math functions, and <node_id.result_id.type> or <global variable id.name.type> references" } },
+    { "input.expression_list.name", { "表达式列表", "Expression list" } },
+    { "input.expression_list.desc", { "按顺序计算的表达式列表；结果文本列表会输出每一项的格式化结果", "Expression list evaluated in order; result text list returns the formatted result of each item" } },
     { "output.result_value.name", { "计算结果", "Result value" } },
     { "output.result_text.name", { "结果显示", "Result text" } },
+    { "output.result_text_list.name", { "结果文本列表", "Result text list" } },
     { "output.status.name", { "运行状态", "Execute status" } },
     { "msg.host_services_missing", { "宿主服务不可用", "Host services are unavailable" } },
     { "msg.invalid_token_syntax", { "表达式中的结果引用语法无效", "The result reference syntax in expression is invalid" } },
@@ -79,12 +80,12 @@ std::string NumberLiteral(double value)
 
 HVVariableCalculate::HVVariableCalculate()
 {
-    expression_
-        .SetSchemaName("expression")
-        .SetStorageKey("expression")
-        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.expression.name"); })
-        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.expression.desc"); })
-        .SetBindable(false)
+    expression_list_
+        .SetSchemaName("expression_list")
+        .SetStorageKey("expression_list")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.expression_list.name"); })
+        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.expression_list.desc"); })
+        .SetBindable(true)
         .SetEditable(true)
         .SetPersist(true)
         .SetParamGroup(PARAM_GROUP_BASIC);
@@ -99,16 +100,22 @@ HVVariableCalculate::HVVariableCalculate()
         .SetDisplayNameResolver([this]() { return Tr(current_language(), "output.result_text.name"); })
         .SetVisibility(HVOutputVisibility::OnSuccess);
 
+    result_text_list_
+        .SetSchemaName("result_text_list")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "output.result_text_list.name"); })
+        .SetVisibility(HVOutputVisibility::OnSuccess);
+
     execute_status_output_
         .SetSchemaName("execute_status")
         .SetDisplayNameResolver([this]() { return Tr(current_language(), "output.status.name"); })
         .SetVisibility(HVOutputVisibility::Always)
         .BindExternalValue(execute_status_);
 
-    RegisterInputField(expression_);
+    RegisterInputField(expression_list_);
     RegisterOutputField(result_value_);
     RegisterOutputField(result_text_);
     RegisterOutputField(execute_status_output_);
+    RegisterOutputField(result_text_list_);
 }
 
 int HVVariableCalculate::init()
@@ -116,6 +123,7 @@ int HVVariableCalculate::init()
     ResetRuntimeState();
     result_value_.value() = 0.0;
     result_text_.value().clear();
+    result_text_list_.value().values.clear();
     return SUCCESS;
 }
 
@@ -126,28 +134,28 @@ int HVVariableCalculate::run()
     error_message_key_.clear();
     result_value_.value() = 0.0;
     result_text_.value().clear();
+    result_text_list_.value().values.clear();
 
     if (host_services() == nullptr) {
         return FailCalculation(ALGORITHM_RUN_ERROR, "msg.host_services_missing");
     }
 
-    std::string evaluable_expression;
-    const int build_ret = BuildEvaluableExpression(evaluable_expression);
-    if (build_ret != SUCCESS) {
-        return build_ret;
-    }
-
-    int error_pos = 0;
-    const double value = te_interp(evaluable_expression.c_str(), &error_pos);
-    if (error_pos != 0) {
+    if (expression_list_.value().values.empty()) {
         return FailCalculation(ALGORITHM_RUN_ERROR, "msg.invalid_expression");
     }
-    if (!std::isfinite(value)) {
-        return FailCalculation(ALGORITHM_RUN_ERROR, "msg.invalid_result");
-    }
 
-    result_value_.value() = value;
-    result_text_.value() = hvref::FormatFixed4(value);
+    for (size_t i = 0; i < expression_list_.value().values.size(); ++i) {
+        const std::string expression_text = expression_list_.value().values[i].c_str();
+        double value = 0.0;
+        std::string text;
+        const int eval_ret = EvaluateExpressionText(expression_text, value, text);
+        if (eval_ret != SUCCESS) {
+            return eval_ret;
+        }
+        result_value_.value() = value;
+        result_text_.value() = text;
+        result_text_list_.value().values.push_back(HVStableString(text));
+    }
 
     const auto end = std::chrono::steady_clock::now();
     run_time_ = static_cast<long>(
@@ -172,12 +180,13 @@ std::string HVVariableCalculate::TranslateText(const std::string& key) const
     return Tr(current_language(), key);
 }
 
-int HVVariableCalculate::BuildEvaluableExpression(std::string& out_expression)
+int HVVariableCalculate::BuildEvaluableExpression(
+    const std::string& expression_text,
+    std::string& out_expression)
 {
     out_expression.clear();
 
     size_t current_pos = 0;
-    const std::string& expression_text = expression_.value();
     while (current_pos < expression_text.size()) {
         const size_t token_begin = expression_text.find('<', current_pos);
         if (token_begin == std::string::npos) {
@@ -221,10 +230,39 @@ int HVVariableCalculate::BuildEvaluableExpression(std::string& out_expression)
     return SUCCESS;
 }
 
+int HVVariableCalculate::EvaluateExpressionText(
+    const std::string& expression_text,
+    double& out_value,
+    std::string& out_text)
+{
+    out_value = 0.0;
+    out_text.clear();
+
+    std::string evaluable_expression;
+    const int build_ret = BuildEvaluableExpression(expression_text, evaluable_expression);
+    if (build_ret != SUCCESS) {
+        return build_ret;
+    }
+
+    int error_pos = 0;
+    const double value = te_interp(evaluable_expression.c_str(), &error_pos);
+    if (error_pos != 0) {
+        return FailCalculation(ALGORITHM_RUN_ERROR, "msg.invalid_expression");
+    }
+    if (!std::isfinite(value)) {
+        return FailCalculation(ALGORITHM_RUN_ERROR, "msg.invalid_result");
+    }
+
+    out_value = value;
+    out_text = hvref::FormatFixed4(value);
+    return SUCCESS;
+}
+
 int HVVariableCalculate::FailCalculation(int status, const std::string& message_key)
 {
     result_value_.value() = 0.0;
     result_text_.value().clear();
+    result_text_list_.value().values.clear();
     return FailWithMessage(status, message_key);
 }
 
