@@ -129,7 +129,7 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
             target_compile_options(${PLUGIN_NAME} PRIVATE /bigobj)
         endif()
 
-        if(MSVC AND (${PLUGIN_NAME} STREQUAL "HVImageEdge" OR ${PLUGIN_NAME} STREQUAL "HVImageRoiCrop" OR ${PLUGIN_NAME} STREQUAL "HVRoiCreate" OR ${PLUGIN_NAME} STREQUAL "HVImageSave" OR ${PLUGIN_NAME} STREQUAL "HVImageTextDisplay" OR ${PLUGIN_NAME} STREQUAL "ConditionalBranch" OR ${PLUGIN_NAME} STREQUAL "HVSendData" OR ${PLUGIN_NAME} STREQUAL "Format" OR ${PLUGIN_NAME} STREQUAL "ConditionCheck" OR ${PLUGIN_NAME} STREQUAL "VariableCalculate"))
+        if(MSVC AND (${PLUGIN_NAME} STREQUAL "HVImageEdge" OR ${PLUGIN_NAME} STREQUAL "HVImageRoiCrop" OR ${PLUGIN_NAME} STREQUAL "HVRoiCreate" OR ${PLUGIN_NAME} STREQUAL "HVImageSave" OR ${PLUGIN_NAME} STREQUAL "HVImageTextDisplay" OR ${PLUGIN_NAME} STREQUAL "ConditionalBranch" OR ${PLUGIN_NAME} STREQUAL "HVSendData" OR ${PLUGIN_NAME} STREQUAL "Format" OR ${PLUGIN_NAME} STREQUAL "ConditionCheck" OR ${PLUGIN_NAME} STREQUAL "VariableCalculate" OR ${PLUGIN_NAME} STREQUAL "HandEyeCalibrationNode"))
             # 新插件源码保存为 UTF-8；执行字符集沿用当前工程默认，保持与现有插件中文返回值一致。
             target_compile_options(${PLUGIN_NAME} PRIVATE /source-charset:utf-8)
         endif()
@@ -160,6 +160,15 @@ macro(add_algorithm_plugin CATEGORY_NAME PLUGIN_NAME)
 
         if(TARGET common_lib)
             target_link_libraries(${PLUGIN_NAME} PRIVATE common_lib)
+        endif()
+
+        if(${PLUGIN_NAME} STREQUAL "HandEyeCalibrationNode")
+            add_custom_command(TARGET ${PLUGIN_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_SOURCE_DIR}/HandEyeCalibration/HandEyeCalibration.dll"
+                    "$<TARGET_FILE_DIR:${PLUGIN_NAME}>/HandEyeCalibration.dll"
+                COMMENT "Deploy HandEyeCalibration.dll"
+            )
         endif()
     endif()
 endmacro()
@@ -220,5 +229,22 @@ if(HV_3DPILOT_ALGORITHM_BUILD_TESTS)
 
     if(TARGET common_lib)
         target_link_libraries(HVSchemaJsonTraitsTest PRIVATE common_lib)
+    endif()
+
+    add_executable(HVHandEyeCalibrationTest
+        ${CMAKE_SOURCE_DIR}/tests/HVHandEyeCalibrationTest.cpp
+        ${CMAKE_SOURCE_DIR}/source/Calibration/HandEyeCalibrationNode/HVHandEyeCalibration.cpp
+    )
+
+    if(MSVC)
+        target_compile_options(HVHandEyeCalibrationTest PRIVATE /source-charset:utf-8)
+    endif()
+
+    target_link_libraries(HVHandEyeCalibrationTest PRIVATE
+        ${OpenCV_LIBS}
+    )
+
+    if(TARGET common_lib)
+        target_link_libraries(HVHandEyeCalibrationTest PRIVATE common_lib)
     endif()
 endif()
