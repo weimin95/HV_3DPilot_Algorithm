@@ -25,9 +25,12 @@ private:
     HVInputField<int> position_x_{ 0 };
     HVInputField<int> position_y_{ 0 };
     HVInputField<HVGeometryList> roi_list_;
-    HVInputField<int> text_color_{ 0 };
     HVInputField<int> font_size_{ 20 };
     HVInputField<bool> output_rgb_{ false };
+    HVInputField<bool> bind_roi_{ false };
+    HVInputField<int> node_status_{ 0 };
+    HVInputField<int> ok_color_{ 0 };
+    HVInputField<int> ng_color_{ 1 };
 
     HVOutputField<std::shared_ptr<ImageDataInfo2D>> output_image_;
     HVOutputField<int> execute_status_output_;

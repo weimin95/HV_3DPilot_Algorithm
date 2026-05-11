@@ -16,7 +16,6 @@ const hvi18n::Dictionary kTexts = {
     { "input.position_x.name", { "X 坐标", "Position X" } },
     { "input.position_y.name", { "Y 坐标", "Position Y" } },
     { "input.roi_list.name", { "ROI 列表", "ROI list" } },
-    { "input.text_color.name", { "文本颜色", "Text color" } },
     { "input.font_size.name", { "字体大小", "Font size" } },
     { "output.image.name", { "输出图像", "Output image" } },
     { "output.status.name", { "运行状态", "Execute status" } },
@@ -25,10 +24,17 @@ const hvi18n::Dictionary kTexts = {
     { "input.position_x.desc", { "文本绘制的 X 像素坐标", "X pixel coordinate for text placement" } },
     { "input.position_y.desc", { "文本绘制的 Y 像素坐标", "Y pixel coordinate for text placement" } },
     { "input.roi_list.desc", { "待绘制的 ROI 几何列表", "ROI geometry list to draw" } },
-    { "input.text_color.desc", { "文本与 ROI 的绘制颜色", "Color for text and ROI drawing" } },
     { "input.font_size.desc", { "文本字体大小", "Font size for text" } },
     { "input.output_rgb.name", { "输出 RGB", "Output RGB" } },
     { "input.output_rgb.desc", { "将灰度输入转为 RGB 后再绘制", "Convert grayscale input to RGB before drawing" } },
+    { "input.bind_roi.name", { "绑定 ROI", "Bind ROI" } },
+    { "input.bind_roi.desc", { "启用后需绑定 ROI 列表并在图像上绘制", "Enable to bind and draw ROI list on image" } },
+    { "input.node_status.name", { "节点状态", "Node status" } },
+    { "input.node_status.desc", { "绑定前序节点状态，0 为 OK，非 0 为 NG", "Bind upstream node status, 0 = OK, non-zero = NG" } },
+    { "input.ok_color.name", { "OK 颜色", "OK color" } },
+    { "input.ok_color.desc", { "节点状态为 OK 时的绘制颜色", "Drawing color when node status is OK" } },
+    { "input.ng_color.name", { "NG 颜色", "NG color" } },
+    { "input.ng_color.desc", { "节点状态为 NG 时的绘制颜色", "Drawing color when node status is NG" } },
     { "msg.input_null", { "输入图像为空", "Input image is null" } },
     { "msg.roi_3d_not_supported", { "ROI 列表包含不支持的 3D 几何", "ROI list contains unsupported 3D geometry" } },
     { "msg.success", { "文本显示叠加成功", "Text display overlay success" } },
@@ -196,31 +202,8 @@ HVImageTextDisplay::HVImageTextDisplay()
         .SetBindable(true)
         .SetEditable(true)
         .SetPersist(true)
-        .SetParamGroup(PARAM_GROUP_BASIC);
-
-    {
-        OptionsConstraint color_options;
-        for (const auto& preset : kColorPresets) {
-            color_options.AddOption(preset.id, preset.label_key);
-        }
-        color_options.default_index = 0;
-        text_color_
-            .SetSchemaName("text_color")
-            .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.text_color.name"); })
-            .SetDescriptionResolver([this]() { return Tr(current_language(), "input.text_color.desc"); })
-            .SetBindable(false)
-            .SetEditable(true)
-            .SetPersist(true)
-            .SetOptionsConstraint(color_options)
-            .SetMetadataCustomizer([this](ParamMetadata& metadata) {
-                auto& labels = metadata.options_constraint.option_labels;
-                constexpr int preset_count = sizeof(kColorPresets) / sizeof(kColorPresets[0]);
-                for (int i = 0; i < static_cast<int>(labels.size()) && i < preset_count; ++i) {
-                    labels[i] = Tr(current_language(), kColorPresets[i].label_key);
-                }
-            })
-            .SetParamGroup(PARAM_GROUP_ADVANCED);
-    }
+        .SetParamGroup(PARAM_GROUP_BASIC)
+        .AddDependency(ParamDependency(7, DEPENDS_ON_IN_LIST, { "1", "true" }));
 
     font_size_
         .SetSchemaName("font_size")
@@ -241,6 +224,67 @@ HVImageTextDisplay::HVImageTextDisplay()
         .SetPersist(true)
         .SetParamGroup(PARAM_GROUP_ADVANCED);
 
+    bind_roi_
+        .SetSchemaName("bind_roi")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.bind_roi.name"); })
+        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.bind_roi.desc"); })
+        .SetBindable(false)
+        .SetEditable(true)
+        .SetPersist(true)
+        .SetParamGroup(PARAM_GROUP_BASIC);
+
+    node_status_
+        .SetSchemaName("node_status")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.node_status.name"); })
+        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.node_status.desc"); })
+        .SetBindable(true)
+        .SetEditable(true)
+        .SetPersist(true)
+        .SetParamGroup(PARAM_GROUP_BASIC);
+
+    {
+        OptionsConstraint color_options;
+        for (const auto& preset : kColorPresets) {
+            color_options.AddOption(preset.id, preset.label_key);
+        }
+
+        color_options.default_index = 0;
+        ok_color_
+            .SetSchemaName("ok_color")
+            .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.ok_color.name"); })
+            .SetDescriptionResolver([this]() { return Tr(current_language(), "input.ok_color.desc"); })
+            .SetBindable(false)
+            .SetEditable(true)
+            .SetPersist(true)
+            .SetOptionsConstraint(color_options)
+            .SetMetadataCustomizer([this](ParamMetadata& metadata) {
+                auto& labels = metadata.options_constraint.option_labels;
+                constexpr int preset_count = sizeof(kColorPresets) / sizeof(kColorPresets[0]);
+                for (int i = 0; i < static_cast<int>(labels.size()) && i < preset_count; ++i) {
+                    labels[i] = Tr(current_language(), kColorPresets[i].label_key);
+                }
+            })
+            .SetParamGroup(PARAM_GROUP_ADVANCED);
+
+        color_options.default_index = 1;
+        ng_color_
+            .SetSchemaName("ng_color")
+            .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.ng_color.name"); })
+            .SetDescriptionResolver([this]() { return Tr(current_language(), "input.ng_color.desc"); })
+            .SetBindable(false)
+            .SetEditable(true)
+            .SetPersist(true)
+            .SetOptionsConstraint(color_options)
+            .SetMetadataCustomizer([this](ParamMetadata& metadata) {
+                auto& labels = metadata.options_constraint.option_labels;
+                constexpr int preset_count = sizeof(kColorPresets) / sizeof(kColorPresets[0]);
+                for (int i = 0; i < static_cast<int>(labels.size()) && i < preset_count; ++i) {
+                    labels[i] = Tr(current_language(), kColorPresets[i].label_key);
+                }
+            })
+            .SetParamGroup(PARAM_GROUP_ADVANCED);
+    }
+
     output_image_
         .SetSchemaName("output_image")
         .SetDisplayNameResolver([this]() { return Tr(current_language(), "output.image.name"); })
@@ -257,9 +301,12 @@ HVImageTextDisplay::HVImageTextDisplay()
     RegisterInputField(position_x_);
     RegisterInputField(position_y_);
     RegisterInputField(roi_list_);
-    RegisterInputField(text_color_);
     RegisterInputField(font_size_);
     RegisterInputField(output_rgb_);
+    RegisterInputField(bind_roi_);
+    RegisterInputField(node_status_);
+    RegisterInputField(ok_color_);
+    RegisterInputField(ng_color_);
     RegisterOutputField(output_image_);
     RegisterOutputField(execute_status_output_);
 }
@@ -283,11 +330,13 @@ int HVImageTextDisplay::run()
     }
 
     const std::string& text_value = text_input_.value();
-    const auto& roi_values = roi_list_.value().values;
 
-    for (const auto& roi : roi_values) {
-        if (!Is2DShape(roi.shape_type_)) {
-            return FailWithMessage(ALGORITHM_RUN_ERROR, "msg.roi_3d_not_supported");
+    if (bind_roi_.value()) {
+        const auto& roi_values = roi_list_.value().values;
+        for (const auto& roi : roi_values) {
+            if (!Is2DShape(roi.shape_type_)) {
+                return FailWithMessage(ALGORITHM_RUN_ERROR, "msg.roi_3d_not_supported");
+            }
         }
     }
 
@@ -298,7 +347,9 @@ int HVImageTextDisplay::run()
         cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
     }
 
-    const cv::Scalar color = GetColor(text_color_.value(), output.channels());
+    const int status = node_status_.value();
+    const int color_id = (status == 0) ? ok_color_.value() : ng_color_.value();
+    const cv::Scalar color = GetColor(color_id, output.channels());
     const int font_size = font_size_.value();
     const double font_scale = static_cast<double>(font_size) / 20.0;
 
@@ -312,8 +363,11 @@ int HVImageTextDisplay::run()
                     cv::FONT_HERSHEY_SIMPLEX, font_scale, color, 2);
     }
 
-    for (const auto& roi : roi_values) {
-        DrawRoi(output, roi, color);
+    if (bind_roi_.value()) {
+        const auto& roi_values = roi_list_.value().values;
+        for (const auto& roi : roi_values) {
+            DrawRoi(output, roi, color);
+        }
     }
 
     output_image_.value() = std::make_shared<ImageDataInfo2D>(ImageConverter::FromMat(output));
