@@ -12,19 +12,24 @@ namespace {
 const hvi18n::Dictionary kTexts = {
     { "algorithm.display", { "文本显示", "Text display" } },
     { "input.image.name", { "输入图像", "Input image" } },
-    { "input.text_list.name", { "文本列表", "Text list" } },
+    { "input.text.name", { "文本", "Text" } },
+    { "input.position_x.name", { "X 坐标", "Position X" } },
+    { "input.position_y.name", { "Y 坐标", "Position Y" } },
     { "input.roi_list.name", { "ROI 列表", "ROI list" } },
     { "input.text_color.name", { "文本颜色", "Text color" } },
     { "input.font_size.name", { "字体大小", "Font size" } },
     { "output.image.name", { "输出图像", "Output image" } },
     { "output.status.name", { "运行状态", "Execute status" } },
     { "input.image.desc", { "输入图像", "Input image" } },
-    { "input.text_list.desc", { "待叠加显示的文本列表", "Text list to overlay on image" } },
+    { "input.text.desc", { "待叠加显示的文本", "Text to overlay on image" } },
+    { "input.position_x.desc", { "文本绘制的 X 像素坐标", "X pixel coordinate for text placement" } },
+    { "input.position_y.desc", { "文本绘制的 Y 像素坐标", "Y pixel coordinate for text placement" } },
     { "input.roi_list.desc", { "待绘制的 ROI 几何列表", "ROI geometry list to draw" } },
     { "input.text_color.desc", { "文本与 ROI 的绘制颜色", "Color for text and ROI drawing" } },
     { "input.font_size.desc", { "文本字体大小", "Font size for text" } },
+    { "input.output_rgb.name", { "输出 RGB", "Output RGB" } },
+    { "input.output_rgb.desc", { "将灰度输入转为 RGB 后再绘制", "Convert grayscale input to RGB before drawing" } },
     { "msg.input_null", { "输入图像为空", "Input image is null" } },
-    { "msg.text_roi_count_mismatch", { "文本列表与 ROI 列表数量不一致", "Text list and ROI list count mismatch" } },
     { "msg.roi_3d_not_supported", { "ROI 列表包含不支持的 3D 几何", "ROI list contains unsupported 3D geometry" } },
     { "msg.success", { "文本显示叠加成功", "Text display overlay success" } },
     { "option.color.green", { "绿色", "Green" } },
@@ -125,36 +130,6 @@ void DrawRoi(cv::Mat& image, const HVGeometryInfo& geometry, const cv::Scalar& c
     }
 }
 
-cv::Point GetTextAnchor(const HVGeometryInfo& geometry, int offset_x, int offset_y)
-{
-    switch (geometry.shape_type_) {
-    case HVGeometryShapeType::Point:
-        return cv::Point(static_cast<int>(geometry.AsPoint().x) + offset_x,
-                         static_cast<int>(geometry.AsPoint().y) + offset_y);
-    case HVGeometryShapeType::LineSegment: {
-        const auto& seg = geometry.AsLineSegment();
-        int min_x = static_cast<int>(std::min(seg.start_point_.x, seg.end_point_.x));
-        int min_y = static_cast<int>(std::min(seg.start_point_.y, seg.end_point_.y));
-        return cv::Point(min_x + offset_x, min_y + offset_y);
-    }
-    case HVGeometryShapeType::Rectangle:
-        return cv::Point(static_cast<int>(geometry.AsRect().x_) + offset_x,
-                         static_cast<int>(geometry.AsRect().y_) + offset_y);
-    case HVGeometryShapeType::RotatedRectangle: {
-        auto vertices = geometry.AsRotatedRect().VerticesClockwise();
-        int min_x = static_cast<int>(vertices[0].x);
-        int min_y = static_cast<int>(vertices[0].y);
-        for (int i = 1; i < 4; ++i) {
-            min_x = std::min(min_x, static_cast<int>(vertices[i].x));
-            min_y = std::min(min_y, static_cast<int>(vertices[i].y));
-        }
-        return cv::Point(min_x + offset_x, min_y + offset_y);
-    }
-    default:
-        return cv::Point(offset_x, offset_y);
-    }
-}
-
 bool Is2DShape(HVGeometryShapeType shape_type)
 {
     return shape_type == HVGeometryShapeType::Point ||
@@ -185,13 +160,33 @@ HVImageTextDisplay::HVImageTextDisplay()
         .SetExposeCurrentValue(true)
         .SetParamGroup(PARAM_GROUP_BASIC);
 
-    text_list_
-        .SetSchemaName("text_list")
-        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.text_list.name"); })
-        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.text_list.desc"); })
+    text_input_
+        .SetSchemaName("text_input")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.text.name"); })
+        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.text.desc"); })
         .SetBindable(true)
         .SetEditable(true)
         .SetPersist(true)
+        .SetParamGroup(PARAM_GROUP_BASIC);
+
+    position_x_
+        .SetSchemaName("position_x")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.position_x.name"); })
+        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.position_x.desc"); })
+        .SetBindable(false)
+        .SetEditable(true)
+        .SetPersist(true)
+        .SetRangeConstraint(-99999, 99999, 0)
+        .SetParamGroup(PARAM_GROUP_BASIC);
+
+    position_y_
+        .SetSchemaName("position_y")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.position_y.name"); })
+        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.position_y.desc"); })
+        .SetBindable(false)
+        .SetEditable(true)
+        .SetPersist(true)
+        .SetRangeConstraint(-99999, 99999, 0)
         .SetParamGroup(PARAM_GROUP_BASIC);
 
     roi_list_
@@ -237,6 +232,15 @@ HVImageTextDisplay::HVImageTextDisplay()
         .SetRangeConstraint(8, 120, 20)
         .SetParamGroup(PARAM_GROUP_ADVANCED);
 
+    output_rgb_
+        .SetSchemaName("output_rgb")
+        .SetDisplayNameResolver([this]() { return Tr(current_language(), "input.output_rgb.name"); })
+        .SetDescriptionResolver([this]() { return Tr(current_language(), "input.output_rgb.desc"); })
+        .SetBindable(false)
+        .SetEditable(true)
+        .SetPersist(true)
+        .SetParamGroup(PARAM_GROUP_ADVANCED);
+
     output_image_
         .SetSchemaName("output_image")
         .SetDisplayNameResolver([this]() { return Tr(current_language(), "output.image.name"); })
@@ -249,10 +253,13 @@ HVImageTextDisplay::HVImageTextDisplay()
         .BindExternalValue(execute_status_);
 
     RegisterInputField(input_image_);
-    RegisterInputField(text_list_);
+    RegisterInputField(text_input_);
+    RegisterInputField(position_x_);
+    RegisterInputField(position_y_);
     RegisterInputField(roi_list_);
     RegisterInputField(text_color_);
     RegisterInputField(font_size_);
+    RegisterInputField(output_rgb_);
     RegisterOutputField(output_image_);
     RegisterOutputField(execute_status_output_);
 }
@@ -275,13 +282,8 @@ int HVImageTextDisplay::run()
         return FailWithMessage(ALGORITHM_RUN_ERROR, "msg.input_null");
     }
 
-    const auto& text_values = text_list_.value().values;
+    const std::string& text_value = text_input_.value();
     const auto& roi_values = roi_list_.value().values;
-
-    if (!text_values.empty() && !roi_values.empty() &&
-        text_values.size() != roi_values.size()) {
-        return FailWithMessage(ALGORITHM_RUN_ERROR, "msg.text_roi_count_mismatch");
-    }
 
     for (const auto& roi : roi_values) {
         if (!Is2DShape(roi.shape_type_)) {
@@ -291,6 +293,11 @@ int HVImageTextDisplay::run()
 
     cv::Mat src = ImageConverter::ToMat(*input_image_.value());
     cv::Mat output = src.clone();
+
+    if (output_rgb_.value() && output.channels() == 1) {
+        cv::cvtColor(output, output, cv::COLOR_GRAY2BGR);
+    }
+
     const cv::Scalar color = GetColor(text_color_.value(), output.channels());
     const int font_size = font_size_.value();
     const double font_scale = static_cast<double>(font_size) / 20.0;
@@ -298,27 +305,15 @@ int HVImageTextDisplay::run()
     const int img_width = static_cast<int>(input_image_.value()->width);
     const int img_height = static_cast<int>(input_image_.value()->height);
 
-    if (!roi_values.empty()) {
-        for (size_t i = 0; i < roi_values.size(); ++i) {
-            DrawRoi(output, roi_values[i], color);
-
-            if (!text_values.empty() && i < text_values.size()) {
-                cv::Point anchor = GetTextAnchor(roi_values[i], 6, -6);
-                ClampPoint(anchor, img_width, img_height);
-                cv::putText(output, text_values[i], anchor,
-                            cv::FONT_HERSHEY_SIMPLEX, font_scale, color, 2);
-            }
-        }
+    if (!text_value.empty()) {
+        cv::Point anchor(position_x_.value(), position_y_.value());
+        ClampPoint(anchor, img_width, img_height);
+        cv::putText(output, text_value, anchor,
+                    cv::FONT_HERSHEY_SIMPLEX, font_scale, color, 2);
     }
-    else if (!text_values.empty()) {
-        const int text_margin = 10;
-        const int line_spacing = static_cast<int>(font_size * 1.4);
-        for (size_t i = 0; i < text_values.size(); ++i) {
-            cv::Point anchor(text_margin, text_margin + static_cast<int>(i) * line_spacing + font_size);
-            ClampPoint(anchor, img_width, img_height);
-            cv::putText(output, text_values[i], anchor,
-                        cv::FONT_HERSHEY_SIMPLEX, font_scale, color, 2);
-        }
+
+    for (const auto& roi : roi_values) {
+        DrawRoi(output, roi, color);
     }
 
     output_image_.value() = std::make_shared<ImageDataInfo2D>(ImageConverter::FromMat(output));

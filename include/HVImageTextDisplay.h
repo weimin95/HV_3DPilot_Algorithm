@@ -21,10 +21,13 @@ protected:
 
 private:
     HVInputField<std::shared_ptr<ImageDataInfo2D>> input_image_;
-    HVInputField<HVStringList> text_list_;
+    HVInputField<std::string> text_input_;
+    HVInputField<int> position_x_{ 0 };
+    HVInputField<int> position_y_{ 0 };
     HVInputField<HVGeometryList> roi_list_;
     HVInputField<int> text_color_{ 0 };
     HVInputField<int> font_size_{ 20 };
+    HVInputField<bool> output_rgb_{ false };
 
     HVOutputField<std::shared_ptr<ImageDataInfo2D>> output_image_;
     HVOutputField<int> execute_status_output_;
