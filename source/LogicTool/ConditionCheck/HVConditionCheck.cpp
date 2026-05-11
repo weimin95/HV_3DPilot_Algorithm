@@ -539,7 +539,7 @@ int HVConditionCheck::run()
         final_ok = std::any_of(rule_results.begin(), rule_results.end(), [](const bool value) { return value; });
     }
 
-    result_int_ = final_ok ? 1 : 0;
+    result_int_ = final_ok ? 0 : 1;
     result_string_ = final_ok ? "OK" : "NG";
 
     const auto end = std::chrono::steady_clock::now();
