@@ -32,6 +32,7 @@ struct ParsedReferenceToken {
     int global_var_token_id = -1;
     std::string global_var_name;
     int expected_type = -1;
+    std::string format_spec;
 };
 
 struct ResolvedReferenceValue {
@@ -51,7 +52,7 @@ ResolveError ResolveReferenceValue(
     const ParsedReferenceToken& token,
     ResolvedReferenceValue& out_value);
 
-ResolveError FormatReferenceValue(const ResolvedReferenceValue& value, std::string& out_text);
+ResolveError FormatReferenceValue(const ResolvedReferenceValue& value, std::string& out_text, const std::string& format_spec = "");
 ResolveError ConvertReferenceValueToDouble(const ResolvedReferenceValue& value, double& out_value);
 
 }  // namespace hvref

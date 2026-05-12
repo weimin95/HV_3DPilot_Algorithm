@@ -71,6 +71,111 @@ const void* PointerFromHostValue(const NodeHostValue& value)
     }
 }
 
+std::string StripTokenFormatSpec(const std::string& token_text, std::string& out_format_spec)
+{
+    const auto paren = token_text.rfind("(%");
+    if (paren != std::string::npos && !token_text.empty() && token_text.back() == ')') {
+        // 提取 %fmt（包含 %），去除首尾空白。
+        out_format_spec = TrimCopy(token_text.substr(paren + 1, token_text.size() - paren - 2));
+        return token_text.substr(0, paren);
+    }
+    out_format_spec.clear();
+    return token_text;
+}
+
+struct FormatSpec {
+    char type_char = 0;
+    int width = 0;
+    int precision = -1;
+    bool zero_pad = false;
+};
+
+bool ParseFormatSpec(const std::string& spec, FormatSpec& out)
+{
+    if (spec.size() < 2 || spec[0] != '%') {
+        return false;
+    }
+
+    size_t pos = 1;
+
+    if (pos < spec.size() && spec[pos] == '0') {
+        out.zero_pad = true;
+        ++pos;
+    }
+
+    out.width = 0;
+    while (pos < spec.size() && std::isdigit(static_cast<unsigned char>(spec[pos]))) {
+        out.width = out.width * 10 + (spec[pos] - '0');
+        ++pos;
+    }
+
+    if (pos < spec.size() && spec[pos] == '.') {
+        ++pos;
+        out.precision = 0;
+        while (pos < spec.size() && std::isdigit(static_cast<unsigned char>(spec[pos]))) {
+            out.precision = out.precision * 10 + (spec[pos] - '0');
+            ++pos;
+        }
+    }
+
+    if (pos + 1 != spec.size()) {
+        return false;
+    }
+    out.type_char = spec[pos];
+    return true;
+}
+
+std::string ApplyFormatSpec(int hv_type, const void* data, const std::string& format_spec)
+{
+    FormatSpec spec;
+    if (!ParseFormatSpec(format_spec, spec)) {
+        return {};
+    }
+
+    switch (spec.type_char) {
+    case 'd': {
+        long long value = 0;
+        switch (hv_type) {
+        case HV_INT:    value = *static_cast<const int*>(data); break;
+        case HV_LONG:   value = *static_cast<const long*>(data); break;
+        default: return {};
+        }
+        std::ostringstream oss;
+        if (spec.width > 0) {
+            oss << std::setfill('0') << std::setw(spec.width);
+        }
+        oss << value;
+        return oss.str();
+    }
+    case 'f': {
+        double value = 0.0;
+        switch (hv_type) {
+        case HV_INT:    value = static_cast<double>(*static_cast<const int*>(data)); break;
+        case HV_LONG:   value = static_cast<double>(*static_cast<const long*>(data)); break;
+        case HV_FLOAT:  value = static_cast<double>(*static_cast<const float*>(data)); break;
+        case HV_DOUBLE: value = *static_cast<const double*>(data); break;
+        default: return {};
+        }
+        const int prec = (spec.precision >= 0) ? spec.precision : 6;
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(prec);
+        if (spec.width > 0) {
+            oss << std::setfill('0') << std::setw(spec.width);
+        }
+        oss << value;
+        return oss.str();
+    }
+    case 's': {
+        if (hv_type == HV_STRING) {
+            return *static_cast<const std::string*>(data);
+        }
+        return {};
+    }
+    default:
+        return {};
+    }
+}
+
 }  // namespace
 
 std::string TrimCopy(const std::string& text)
@@ -118,7 +223,9 @@ ResolveError ParseReferenceToken(const std::string& token_text, ParsedReferenceT
 {
     out_token = ParsedReferenceToken();
 
-    const std::vector<std::string> parts = SplitByDot(token_text);
+    // 先把末尾的 (%fmt) 提取出来，避免格式串内的 '.' 干扰按点拆分。
+    const std::string clean_text = StripTokenFormatSpec(token_text, out_token.format_spec);
+    const std::vector<std::string> parts = SplitByDot(clean_text);
     if (parts.empty()) {
         return ResolveError::InvalidSyntax;
     }
@@ -252,11 +359,19 @@ ResolveError ResolveReferenceValue(
     return ResolveError::None;
 }
 
-ResolveError FormatReferenceValue(const ResolvedReferenceValue& value, std::string& out_text)
+ResolveError FormatReferenceValue(const ResolvedReferenceValue& value, std::string& out_text, const std::string& format_spec)
 {
     out_text.clear();
     if (!value.has_value || value.data == nullptr) {
         return ResolveError::EmptyValue;
+    }
+
+    if (!format_spec.empty()) {
+        const std::string formatted = ApplyFormatSpec(value.type, value.data, format_spec);
+        if (!formatted.empty()) {
+            out_text = formatted;
+            return ResolveError::None;
+        }
     }
 
     switch (value.type) {

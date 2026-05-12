@@ -384,7 +384,8 @@ int HVFormat::RenderFormatText()
         }
 
         std::string rendered_value;
-        hvref::ResolveError format_error = hvref::FormatReferenceValue(resolved_value, rendered_value);
+        hvref::ResolveError format_error =
+            hvref::FormatReferenceValue(resolved_value, rendered_value, token.format_spec);
         if (format_error != hvref::ResolveError::None) {
             error_message_key_ = ErrorToFormatMessageKey(format_error);
             return ALGORITHM_RUN_ERROR;
@@ -400,27 +401,37 @@ int HVFormat::ParseReferenceToken(const std::string& token_text, ParsedReference
 {
     out_token = ParsedReferenceToken();
 
-    const size_t first_dot = token_text.find('.');
+    // 先把末尾的 (%fmt) 提取出来，避免格式串内的 '.' 干扰点位置查找。
+    std::string clean_text = token_text;
+    {
+        const auto paren = token_text.rfind("(%");
+        if (paren != std::string::npos && !token_text.empty() && token_text.back() == ')') {
+            out_token.format_spec = TrimCopy(token_text.substr(paren + 1, token_text.size() - paren - 2));
+            clean_text = TrimCopy(token_text.substr(0, paren));
+        }
+    }
+
+    const size_t first_dot = clean_text.find('.');
     const size_t second_dot = (first_dot == std::string::npos)
         ? std::string::npos
-        : token_text.find('.', first_dot + 1);
+        : clean_text.find('.', first_dot + 1);
     const size_t third_dot = (second_dot == std::string::npos)
         ? std::string::npos
-        : token_text.find('.', second_dot + 1);
-    const size_t last_dot = token_text.find_last_of('.');
+        : clean_text.find('.', second_dot + 1);
+    const size_t last_dot = clean_text.find_last_of('.');
 
-    if (first_dot != std::string::npos && IsGlobalVariableTokenHead(token_text.substr(0, first_dot))) {
+    if (first_dot != std::string::npos && IsGlobalVariableTokenHead(clean_text.substr(0, first_dot))) {
         if (second_dot == std::string::npos ||
             third_dot == std::string::npos ||
-            token_text.find('.', third_dot + 1) != std::string::npos) {
+            clean_text.find('.', third_dot + 1) != std::string::npos) {
             error_message_key_ = "msg.invalid_token_syntax";
             return ALGORITHM_RUN_ERROR;
         }
 
         int global_var_display_id = -1;
-        const std::string global_var_id_text = token_text.substr(first_dot + 1, second_dot - first_dot - 1);
-        const std::string global_var_name_text = token_text.substr(second_dot + 1, third_dot - second_dot - 1);
-        const std::string type_text = token_text.substr(third_dot + 1);
+        const std::string global_var_id_text = clean_text.substr(first_dot + 1, second_dot - first_dot - 1);
+        const std::string global_var_name_text = clean_text.substr(second_dot + 1, third_dot - second_dot - 1);
+        const std::string type_text = clean_text.substr(third_dot + 1);
         if (!TryParseIntStrict(global_var_id_text, global_var_display_id) || global_var_display_id <= 0) {
             error_message_key_ = "msg.invalid_token_syntax";
             return ALGORITHM_RUN_ERROR;
@@ -451,11 +462,11 @@ int HVFormat::ParseReferenceToken(const std::string& token_text, ParsedReference
         return ALGORITHM_RUN_ERROR;
     }
 
-    const std::string node_id_text = token_text.substr(0, first_dot);
-    const std::string node_alias_text = token_text.substr(first_dot + 1, second_dot - first_dot - 1);
-    const std::string result_id_text = token_text.substr(second_dot + 1, third_dot - second_dot - 1);
-    const std::string output_name_text = token_text.substr(third_dot + 1, last_dot - third_dot - 1);
-    const std::string type_text = token_text.substr(last_dot + 1);
+    const std::string node_id_text = clean_text.substr(0, first_dot);
+    const std::string node_alias_text = clean_text.substr(first_dot + 1, second_dot - first_dot - 1);
+    const std::string result_id_text = clean_text.substr(second_dot + 1, third_dot - second_dot - 1);
+    const std::string output_name_text = clean_text.substr(third_dot + 1, last_dot - third_dot - 1);
+    const std::string type_text = clean_text.substr(last_dot + 1);
 
     if (!TryParseIntStrict(node_id_text, out_token.node_id) ||
         !TryParseIntStrict(result_id_text, out_token.result_id)) {

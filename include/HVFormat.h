@@ -60,6 +60,7 @@ private:
         int global_var_id = -1;
         std::string global_var_name;
         int expected_type = -1;
+        std::string format_spec;
     };
 
     int ApplyParam(int param_id, void* value_ptr);
