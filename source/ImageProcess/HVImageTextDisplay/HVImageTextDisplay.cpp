@@ -5,6 +5,8 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/freetype.hpp>
 
+#include <sstream>
+
 #include "HVI18n.h"
 #include "HVUtils.h"
 
@@ -370,8 +372,23 @@ int HVImageTextDisplay::run()
         cv::Point anchor(position_x_.value(), position_y_.value());
         ClampPoint(anchor, img_width, img_height);
         auto ft2 = GetFT2();
-        ft2->putText(output, text_value, anchor, font_size, color,
-                     -1, cv::LINE_AA, true);
+        // Handle both literal "\n" and real newline characters
+        std::string normalized = text_value;
+        size_t pos = 0;
+        while ((pos = normalized.find("\\n", pos)) != std::string::npos) {
+            normalized.replace(pos, 2, "\n");
+            pos += 1;
+        }
+        std::istringstream stream(normalized);
+        std::string line;
+        int line_num = 0;
+        int line_spacing = static_cast<int>(font_size * 1.4);
+        while (std::getline(stream, line)) {
+            cv::Point line_anchor(anchor.x, anchor.y + line_num * line_spacing);
+            ft2->putText(output, line, line_anchor, font_size, color,
+                         -1, cv::LINE_AA, true);
+            ++line_num;
+        }
     }
 
     if (bind_roi_.value()) {
