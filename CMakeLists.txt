@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(HV_3DPILOT_ALGORITHM_BUILD_TESTS "Build algorithm plugin tests" OFF)
 
 # OpenCV
-set(OpenCV_DIR "D:/proj/3rdParty/opencv410/build")
+set(OpenCV_DIR "D:/proj/3rdParty/opencv4.10_with_contrib/opencv-4.10.0/build/install")
 find_package(OpenCV REQUIRED)
 
 # Open3D
@@ -198,6 +198,18 @@ if(EXISTS "${ICON_SOURCE_ROOT}")
         COMMENT "Copy plugin icon resources to runtime plugins/icons"
     )
 endif()
+
+# Deploy OpenCV runtime DLL so plugins can resolve dependencies at load time
+set(OPENCV_RUNTIME_BIN "${OpenCV_DIR}/x64/vc17/bin")
+add_custom_target(deploy_opencv_runtime ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${OPENCV_RUNTIME_BIN}/opencv_world4100_contrib.dll"
+        "${CMAKE_BINARY_DIR}/HV_3DPilot_Algorithm$<CONFIG>/plugins/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${OPENCV_RUNTIME_BIN}/opencv_videoio_ffmpeg4100_64.dll"
+        "${CMAKE_BINARY_DIR}/HV_3DPilot_Algorithm$<CONFIG>/plugins/"
+    COMMENT "Deploy OpenCV runtime DLLs to plugin root"
+)
 
 if(HV_3DPILOT_ALGORITHM_BUILD_TESTS)
     add_executable(HVImageReaderDepthTest

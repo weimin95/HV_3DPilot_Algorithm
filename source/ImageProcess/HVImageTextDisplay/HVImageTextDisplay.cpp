@@ -3,6 +3,7 @@
 #include <chrono>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/freetype.hpp>
 
 #include "HVI18n.h"
 #include "HVUtils.h"
@@ -150,6 +151,16 @@ void ClampPoint(cv::Point& pt, int img_width, int img_height)
     if (pt.y < 0) pt.y = 0;
     if (pt.x >= img_width) pt.x = img_width - 1;
     if (pt.y >= img_height) pt.y = img_height - 1;
+}
+
+cv::Ptr<cv::freetype::FreeType2> GetFT2()
+{
+    static auto ft2 = cv::freetype::createFreeType2();
+    static bool loaded = [&]() {
+        ft2->loadFontData("C:/Windows/Fonts/simhei.ttf", 0);
+        return true;
+    }();
+    return ft2;
 }
 
 }  // namespace
@@ -351,7 +362,6 @@ int HVImageTextDisplay::run()
     const int color_id = (status == 0) ? ok_color_.value() : ng_color_.value();
     const cv::Scalar color = GetColor(color_id, output.channels());
     const int font_size = font_size_.value();
-    const double font_scale = static_cast<double>(font_size) / 20.0;
 
     const int img_width = static_cast<int>(input_image_.value()->width);
     const int img_height = static_cast<int>(input_image_.value()->height);
@@ -359,8 +369,9 @@ int HVImageTextDisplay::run()
     if (!text_value.empty()) {
         cv::Point anchor(position_x_.value(), position_y_.value());
         ClampPoint(anchor, img_width, img_height);
-        cv::putText(output, text_value, anchor,
-                    cv::FONT_HERSHEY_SIMPLEX, font_scale, color, 2);
+        auto ft2 = GetFT2();
+        ft2->putText(output, text_value, anchor, font_size, color,
+                     -1, cv::LINE_AA, true);
     }
 
     if (bind_roi_.value()) {
