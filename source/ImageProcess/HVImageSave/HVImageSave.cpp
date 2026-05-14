@@ -119,20 +119,6 @@ std::tm LocalTimeNow()
     return local_tm;
 }
 
-std::wstring BuildTimestampStem()
-{
-    const auto now = std::chrono::system_clock::now();
-    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-    const std::tm local_tm = LocalTimeNow();
-    return ToWideTimeToken(local_tm.tm_year + 1900, 4) +
-        ToWideTimeToken(local_tm.tm_mon + 1, 2) +
-        ToWideTimeToken(local_tm.tm_mday, 2) + L"_" +
-        ToWideTimeToken(local_tm.tm_hour, 2) +
-        ToWideTimeToken(local_tm.tm_min, 2) +
-        ToWideTimeToken(local_tm.tm_sec, 2) + L"_" +
-        ToWideTimeToken(static_cast<int>(millis.count()), 3);
-}
-
 bool IsManagedStoredFile(const std::filesystem::path& path)
 {
     if (!path.has_extension()) {
@@ -684,12 +670,7 @@ int HVImageSave::Save2DImage()
 
     const std::wstring extension = save_format_ == kSaveFormatJpeg ? L".jpg" : L".bmp";
     const std::wstring prefix = file_name_prefix_.empty() ? L"image" : std::filesystem::u8path(file_name_prefix_).wstring();
-    const std::wstring stem = prefix + L"_" + BuildTimestampStem();
-    std::filesystem::path output_path = output_dir / (stem + extension);
-    int suffix = 1;
-    while (std::filesystem::exists(output_path)) {
-        output_path = output_dir / (stem + L"_" + std::to_wstring(suffix++) + extension);
-    }
+    const std::filesystem::path output_path = output_dir / (prefix + extension);
 
     if (!cv::imwrite(output_path.string(), image, BuildImageWriteParams(save_format_, jpeg_quality_))) {
         return Fail(ALGORITHM_RUN_ERROR, "msg.write_image_failed");
@@ -731,12 +712,7 @@ int HVImageSave::SaveDepthImage()
 
     const std::wstring extension = save_format_ == kSaveFormatJpeg ? L".jpg" : L".bmp";
     const std::wstring prefix = file_name_prefix_.empty() ? L"depth" : std::filesystem::u8path(file_name_prefix_).wstring();
-    const std::wstring stem = prefix + L"_" + BuildTimestampStem();
-    std::filesystem::path output_path = output_dir / (stem + extension);
-    int suffix = 1;
-    while (std::filesystem::exists(output_path)) {
-        output_path = output_dir / (stem + L"_" + std::to_wstring(suffix++) + extension);
-    }
+    const std::filesystem::path output_path = output_dir / (prefix + extension);
 
     if (!cv::imwrite(output_path.string(), depth_image, BuildImageWriteParams(save_format_, jpeg_quality_))) {
         return Fail(ALGORITHM_RUN_ERROR, "msg.write_image_failed");
@@ -766,12 +742,7 @@ int HVImageSave::SavePointCloud()
     }
 
     const std::wstring prefix = file_name_prefix_.empty() ? L"cloud" : std::filesystem::u8path(file_name_prefix_).wstring();
-    const std::wstring stem = prefix + L"_" + BuildTimestampStem();
-    std::filesystem::path output_path = output_dir / (stem + L".ply");
-    int suffix = 1;
-    while (std::filesystem::exists(output_path)) {
-        output_path = output_dir / (stem + L"_" + std::to_wstring(suffix++) + L".ply");
-    }
+    const std::filesystem::path output_path = output_dir / (prefix + L".ply");
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud = PointCloudConverter::ToPCL(*input_point_cloud_);
     if (!pcl_cloud || pcl::io::savePLYFileBinary(output_path.string(), *pcl_cloud) != 0) {

@@ -231,6 +231,25 @@ if(HV_3DPILOT_ALGORITHM_BUILD_TESTS)
         target_link_libraries(HVImageReaderDepthTest PRIVATE common_lib)
     endif()
 
+    add_executable(HVImageSaveTest
+        ${CMAKE_SOURCE_DIR}/tests/HVImageSaveTest.cpp
+        ${CMAKE_SOURCE_DIR}/source/ImageProcess/HVImageSave/HVImageSave.cpp
+    )
+
+    if(MSVC)
+        target_compile_options(HVImageSaveTest PRIVATE /source-charset:utf-8)
+    endif()
+
+    target_link_libraries(HVImageSaveTest PRIVATE
+        ${OpenCV_LIBS}
+        Open3D::Open3D
+        ${PCL_LIBRARIES}
+    )
+
+    if(TARGET common_lib)
+        target_link_libraries(HVImageSaveTest PRIVATE common_lib)
+    endif()
+
     add_executable(HVSchemaJsonTraitsTest
         ${CMAKE_SOURCE_DIR}/tests/HVSchemaJsonTraitsTest.cpp
     )
