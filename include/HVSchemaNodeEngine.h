@@ -749,7 +749,7 @@ public:
     void* result_value_ptr(int execute_status) override
     {
         // 常规输出失败时返回空指针，主库就不会继续把旧结果当成当前有效输出使用。
-        if (visibility_ == HVOutputVisibility::OnSuccess && execute_status != SUCCESS) {
+        if (visibility_ == HVOutputVisibility::OnSuccess && execute_status != SUCCESS && execute_status != NODE_STATUS_NOT_RUN) {
             return nullptr;
         }
         return external_value_ != nullptr ? static_cast<void*>(external_value_) : static_cast<void*>(&value_);

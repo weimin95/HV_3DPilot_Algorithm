@@ -206,7 +206,7 @@ std::vector<void*> HVFormat::get_current_params()
 
 std::vector<void*> HVFormat::get_algorithm_result()
 {
-    if (execute_status_ == SUCCESS) {
+    if (execute_status_ == SUCCESS || execute_status_ == NODE_STATUS_NOT_RUN) {
         return { &formatted_text_, &execute_status_ };
     }
     return { nullptr, &execute_status_ };

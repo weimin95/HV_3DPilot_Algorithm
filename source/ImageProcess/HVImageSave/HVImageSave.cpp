@@ -320,7 +320,7 @@ std::vector<void*> HVImageSave::get_current_params()
 
 std::vector<void*> HVImageSave::get_algorithm_result()
 {
-    if (execute_status_ == SUCCESS) {
+    if (execute_status_ == SUCCESS || execute_status_ == NODE_STATUS_NOT_RUN) {
         return { &saved_path_, &saved_, &execute_status_ };
     }
     return { nullptr, &saved_, &execute_status_ };
