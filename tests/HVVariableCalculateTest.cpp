@@ -51,7 +51,7 @@ static void TestShape()
     }
 
     Check(current_params.size() == 1, "VariableCalculate current param count");
-    Check(output_types.size() == 4, "VariableCalculate output count");
+    Check(output_types.size() == 2, "VariableCalculate output count");
 }
 
 static void TestSetExpressionListParam()

@@ -383,6 +383,11 @@ struct HVFieldTypeTraits<HVGeometryInfo> {
 };
 
 template <>
+struct HVFieldTypeTraits<HVDoubleList> {
+    static constexpr int kType = HV_DOUBLE_LIST;
+};
+
+template <>
 struct HVFieldTypeTraits<HVStringList> {
     static constexpr int kType = HV_STRING_LIST;
 };

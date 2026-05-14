@@ -20,15 +20,13 @@ protected:
 
 private:
     int BuildEvaluableExpression(const std::string& expression_text, std::string& out_expression);
-    int EvaluateExpressionText(const std::string& expression_text, double& out_value, std::string& out_text);
+    int EvaluateExpressionText(const std::string& expression_text, double& out_value);
     int FailCalculation(int status, const std::string& message_key);
 
 private:
     HVInputField<HVStringList> expression_list_;
 
-    HVOutputField<double> result_value_;
-    HVOutputField<std::string> result_text_;
-    HVOutputField<HVStringList> result_text_list_;
+    HVOutputField<HVDoubleList> result_list_;
     HVOutputField<int> execute_status_output_;
 };
 
