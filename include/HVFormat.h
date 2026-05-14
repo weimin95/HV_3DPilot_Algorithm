@@ -74,6 +74,7 @@ private:
 
 private:
     std::string format_text_;
+    std::string separator_;
     std::string formatted_text_;
     int execute_status_ = NODE_STATUS_NOT_RUN;
     long run_time_ = 0;

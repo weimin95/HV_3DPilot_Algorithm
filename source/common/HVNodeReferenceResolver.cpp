@@ -209,7 +209,45 @@ int MapTypeNameToHvType(const std::string& type_name)
     if (trimmed == "string") {
         return HV_STRING;
     }
+    if (trimmed == "intList") {
+        return HV_INT_LIST;
+    }
+    if (trimmed == "longList") {
+        return HV_LONG_LIST;
+    }
+    if (trimmed == "floatList") {
+        return HV_FLOAT_LIST;
+    }
+    if (trimmed == "doubleList") {
+        return HV_DOUBLE_LIST;
+    }
+    if (trimmed == "boolList") {
+        return HV_BOOLEAN_LIST;
+    }
+    if (trimmed == "stringList") {
+        return HV_STRING_LIST;
+    }
     return -1;
+}
+
+// 从列表类型推导单值类型，非列表类型返回 -1
+static int SingleTypeFromListType(int list_type)
+{
+    switch (list_type) {
+    case HV_INT_LIST:     return HV_INT;
+    case HV_LONG_LIST:    return HV_LONG;
+    case HV_FLOAT_LIST:   return HV_FLOAT;
+    case HV_DOUBLE_LIST:  return HV_DOUBLE;
+    case HV_BOOLEAN_LIST: return HV_BOOLEAN;
+    case HV_STRING_LIST:  return HV_STRING;
+    default:              return -1;
+    }
+}
+
+// 检查是否为列表类型
+static bool IsListType(int hv_type)
+{
+    return SingleTypeFromListType(hv_type) >= 0;
 }
 
 std::string FormatFixed4(double value)
@@ -250,13 +288,30 @@ ResolveError ParseReferenceToken(const std::string& token_text, ParsedReferenceT
         return out_token.expected_type < 0 ? ResolveError::InvalidTypeTag : ResolveError::None;
     }
 
+    // 列表项标记提取：从末尾类型段中解析 typeName[N]
+    auto extract_item_index = [](std::string& type_part) -> int {
+        const auto bracket = type_part.rfind('[');
+        if (bracket == std::string::npos || type_part.empty() || type_part.back() != ']') {
+            return -1;
+        }
+        const std::string index_text = type_part.substr(bracket + 1, type_part.size() - bracket - 2);
+        int idx = -1;
+        if (!TryParseIntStrict(index_text, idx) || idx < 0) {
+            return -1;
+        }
+        type_part = type_part.substr(0, bracket);
+        return idx;
+    };
+
     if (parts.size() == 3) {
         if (!TryParseIntStrict(parts[0], out_token.node_id) ||
             !TryParseIntStrict(parts[1], out_token.result_id)) {
             return ResolveError::InvalidSyntax;
         }
+        std::string type_part = parts[2];
+        out_token.item_index = extract_item_index(type_part);
         out_token.kind = ReferenceKind::NodeResult;
-        out_token.expected_type = MapTypeNameToHvType(parts[2]);
+        out_token.expected_type = MapTypeNameToHvType(type_part);
         return out_token.expected_type < 0 ? ResolveError::InvalidTypeTag : ResolveError::None;
     }
 
@@ -266,8 +321,10 @@ ResolveError ParseReferenceToken(const std::string& token_text, ParsedReferenceT
             !TryParseIntStrict(parts[2], out_token.result_id)) {
             return ResolveError::InvalidSyntax;
         }
+        std::string type_part = parts[4];
+        out_token.item_index = extract_item_index(type_part);
         out_token.kind = ReferenceKind::NodeResult;
-        out_token.expected_type = MapTypeNameToHvType(parts[4]);
+        out_token.expected_type = MapTypeNameToHvType(type_part);
         return out_token.expected_type < 0 ? ResolveError::InvalidTypeTag : ResolveError::None;
     }
 
@@ -323,13 +380,16 @@ ResolveError ResolveReferenceValue(
         return out_value.data == nullptr ? ResolveError::UnsupportedType : ResolveError::None;
     }
 
+    // 对列表项引用，先按列表类型请求上游数据，再按索引提取单值。
+    const int request_type = (token.item_index >= 0) ? token.expected_type : token.expected_type;
+
     NodeHostDataView data_view;
     const int ret = host_services.get_upstream_result_by_id(
         token.node_id,
         token.result_id,
         std::string(),
         std::string(),
-        token.expected_type,
+        request_type,
         data_view);
     if (ret == UPSTREAM_RESULT_NODE_NOT_FOUND) {
         return ResolveError::NodeNotFound;
@@ -353,9 +413,65 @@ ResolveError ResolveReferenceValue(
         return ResolveError::EmptyValue;
     }
 
-    out_value.type = data_view.type;
-    out_value.has_value = data_view.has_value;
-    out_value.data = data_view.data;
+    if (token.item_index < 0 || !IsListType(data_view.type)) {
+        out_value.type = data_view.type;
+        out_value.has_value = data_view.has_value;
+        out_value.data = data_view.data;
+        return ResolveError::None;
+    }
+
+    // 列表项提取：从列表数据中取出指定索引的元素，转为单值。
+    const int item_type = SingleTypeFromListType(data_view.type);
+    if (item_type < 0) {
+        return ResolveError::UnsupportedType;
+    }
+
+    auto extract_list_item = [&](const void* list_data, int index) -> const void* {
+        switch (data_view.type) {
+        case HV_INT_LIST: {
+            const auto* list = static_cast<const HVIntList*>(list_data);
+            if (index < 0 || index >= static_cast<int>(list->values.size())) return nullptr;
+            return &list->values[index];
+        }
+        case HV_LONG_LIST: {
+            const auto* list = static_cast<const HVLongList*>(list_data);
+            if (index < 0 || index >= static_cast<int>(list->values.size())) return nullptr;
+            return &list->values[index];
+        }
+        case HV_FLOAT_LIST: {
+            const auto* list = static_cast<const HVFloatList*>(list_data);
+            if (index < 0 || index >= static_cast<int>(list->values.size())) return nullptr;
+            return &list->values[index];
+        }
+        case HV_DOUBLE_LIST: {
+            const auto* list = static_cast<const HVDoubleList*>(list_data);
+            if (index < 0 || index >= static_cast<int>(list->values.size())) return nullptr;
+            return &list->values[index];
+        }
+        case HV_BOOLEAN_LIST: {
+            const auto* list = static_cast<const HVBooleanList*>(list_data);
+            if (index < 0 || index >= static_cast<int>(list->values.size())) return nullptr;
+            return &list->values[index];
+        }
+        case HV_STRING_LIST: {
+            const auto* list = static_cast<const HVStringList*>(list_data);
+            if (index < 0 || index >= static_cast<int>(list->values.size())) return nullptr;
+            out_value.owned_item_string = std::string(list->values[index].c_str());
+            return &out_value.owned_item_string;
+        }
+        default:
+            return nullptr;
+        }
+    };
+
+    const void* item_ptr = extract_list_item(data_view.data, token.item_index);
+    if (item_ptr == nullptr) {
+        return ResolveError::EmptyValue;
+    }
+
+    out_value.type = item_type;
+    out_value.has_value = true;
+    out_value.data = item_ptr;
     return ResolveError::None;
 }
 
@@ -396,6 +512,80 @@ ResolveError FormatReferenceValue(const ResolvedReferenceValue& value, std::stri
     default:
         return ResolveError::UnsupportedType;
     }
+}
+
+ResolveError FormatListReferenceValue(const ResolvedReferenceValue& value, std::string& out_text, const std::string& separator, const std::string& format_spec)
+{
+    out_text.clear();
+    if (!value.has_value || value.data == nullptr) {
+        return ResolveError::EmptyValue;
+    }
+    if (!IsListType(value.type)) {
+        return FormatReferenceValue(value, out_text, format_spec);
+    }
+
+    auto format_single_item = [](int item_type, const void* item_data, const std::string& fmt_spec) -> std::string {
+        if (item_data == nullptr) {
+            return {};
+        }
+        if (!fmt_spec.empty()) {
+            const std::string formatted = ApplyFormatSpec(item_type, item_data, fmt_spec);
+            if (!formatted.empty()) {
+                return formatted;
+            }
+        }
+        switch (item_type) {
+        case HV_INT:    return std::to_string(*static_cast<const int*>(item_data));
+        case HV_LONG:   return std::to_string(*static_cast<const long*>(item_data));
+        case HV_FLOAT:  return FormatFixed4(*static_cast<const float*>(item_data));
+        case HV_DOUBLE: return FormatFixed4(*static_cast<const double*>(item_data));
+        case HV_BOOLEAN:return *static_cast<const bool*>(item_data) ? "true" : "false";
+        case HV_STRING: return *static_cast<const std::string*>(item_data);
+        default:        return {};
+        }
+    };
+
+    const int item_type = SingleTypeFromListType(value.type);
+
+    // 用于浮点/整数型列表的模板 lambda
+    auto format_value_list = [&](auto* typed_data) {
+        bool first = true;
+        for (size_t i = 0; i < typed_data->values.size(); ++i) {
+            const void* item_ptr = static_cast<const void*>(&typed_data->values[i]);
+            const std::string item_str = format_single_item(item_type, item_ptr, format_spec);
+            if (!first) {
+                out_text += separator;
+            }
+            out_text += item_str;
+            first = false;
+        }
+    };
+
+    switch (value.type) {
+    case HV_INT_LIST:     format_value_list(static_cast<const HVIntList*>(value.data));     break;
+    case HV_LONG_LIST:    format_value_list(static_cast<const HVLongList*>(value.data));    break;
+    case HV_FLOAT_LIST:   format_value_list(static_cast<const HVFloatList*>(value.data));   break;
+    case HV_DOUBLE_LIST:  format_value_list(static_cast<const HVDoubleList*>(value.data));  break;
+    case HV_BOOLEAN_LIST: format_value_list(static_cast<const HVBooleanList*>(value.data)); break;
+    case HV_STRING_LIST: {
+        const auto* list = static_cast<const HVStringList*>(value.data);
+        bool first = true;
+        for (size_t i = 0; i < list->values.size(); ++i) {
+            const std::string item_str_value = std::string(list->values[i].c_str());
+            const void* item_ptr = static_cast<const void*>(&item_str_value);
+            const std::string item_str = format_single_item(HV_STRING, item_ptr, format_spec);
+            if (!first) {
+                out_text += separator;
+            }
+            out_text += item_str;
+            first = false;
+        }
+        break;
+    }
+    default:
+        return ResolveError::UnsupportedType;
+    }
+    return ResolveError::None;
 }
 
 ResolveError ConvertReferenceValueToDouble(const ResolvedReferenceValue& value, double& out_value)

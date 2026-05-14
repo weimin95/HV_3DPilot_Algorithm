@@ -33,6 +33,7 @@ struct ParsedReferenceToken {
     std::string global_var_name;
     int expected_type = -1;
     std::string format_spec;
+    int item_index = -1;  // >=0 时表示取列表的第 item_index 项
 };
 
 struct ResolvedReferenceValue {
@@ -40,6 +41,7 @@ struct ResolvedReferenceValue {
     bool has_value = false;
     const void* data = nullptr;
     NodeHostValue owned_global_value;
+    std::string owned_item_string;  // 列表项提取时的字符串暂存
 };
 
 std::string TrimCopy(const std::string& text);
@@ -53,6 +55,7 @@ ResolveError ResolveReferenceValue(
     ResolvedReferenceValue& out_value);
 
 ResolveError FormatReferenceValue(const ResolvedReferenceValue& value, std::string& out_text, const std::string& format_spec = "");
+ResolveError FormatListReferenceValue(const ResolvedReferenceValue& value, std::string& out_text, const std::string& separator, const std::string& format_spec = "");
 ResolveError ConvertReferenceValueToDouble(const ResolvedReferenceValue& value, double& out_value);
 
 }  // namespace hvref

@@ -14,10 +14,14 @@
 namespace {
 
 constexpr int kFormatTextParamId = 0;
+constexpr int kSeparatorParamId = 1;
+constexpr const char* kDefaultSeparator = ",";
 const hvi18n::Dictionary kTexts = {
     { "algorithm.display", { "格式化", "Format" } },
     { "input.format_text.name", { "格式化字符串", "Format text" } },
     { "input.format_text.desc", { "支持在字符串中写入 <node_id.node_alias.result_id.output_name type> 结果引用标记", "Format string with embedded <node_id.node_alias.result_id.output_name type> tokens" } },
+    { "input.separator.name", { "分隔符", "Separator" } },
+    { "input.separator.desc", { "列表结果每一项之间的分隔字符串", "Delimiter string placed between each item of a list result" } },
     { "output.formatted_text.name", { "格式化结果", "Formatted text" } },
     { "output.status.name", { "运行状态", "Execute status" } },
     { "msg.host_services_missing", { "宿主服务不可用", "Host services are unavailable" } },
@@ -143,6 +147,7 @@ HVFormat::HVFormat()
 
 int HVFormat::init()
 {
+    separator_ = kDefaultSeparator;
     formatted_text_.clear();
     execute_status_ = NODE_STATUS_NOT_RUN;
     run_time_ = 0;
@@ -201,7 +206,7 @@ int HVFormat::set_algorithm_params(const std::vector<void*>& params, const std::
 
 std::vector<void*> HVFormat::get_current_params()
 {
-    return { &format_text_ };
+    return { &format_text_, &separator_ };
 }
 
 std::vector<void*> HVFormat::get_algorithm_result()
@@ -214,7 +219,7 @@ std::vector<void*> HVFormat::get_algorithm_result()
 
 std::vector<int> HVFormat::get_algorithm_input_params_type()
 {
-    return { HV_STRING };
+    return { HV_STRING, HV_STRING };
 }
 
 std::vector<int> HVFormat::get_algorithm_output_params_type()
@@ -224,7 +229,7 @@ std::vector<int> HVFormat::get_algorithm_output_params_type()
 
 std::vector<std::string> HVFormat::get_algorithm_input_params_name()
 {
-    return { Tr(language_, "input.format_text.name") };
+    return { Tr(language_, "input.format_text.name"), Tr(language_, "input.separator.name") };
 }
 
 std::vector<std::string> HVFormat::get_algorithm_output_params_name()
@@ -237,15 +242,18 @@ std::vector<std::string> HVFormat::get_algorithm_output_params_name()
 
 std::vector<bool> HVFormat::get_algorithm_input_params_bindable()
 {
-    return { false };
+    return { false, false };
 }
 
 std::vector<ParamMetadata> HVFormat::get_algorithm_input_params_metadata()
 {
-    std::vector<ParamMetadata> metadata_list(1);
+    std::vector<ParamMetadata> metadata_list(2);
     metadata_list[0].param_name = "format_text";
     metadata_list[0].param_description = Tr(language_, "input.format_text.desc");
     metadata_list[0].param_type = HV_STRING;
+    metadata_list[1].param_name = "separator";
+    metadata_list[1].param_description = Tr(language_, "input.separator.desc");
+    metadata_list[1].param_type = HV_STRING;
     return metadata_list;
 }
 
@@ -282,6 +290,7 @@ bool HVFormat::save_params_to_json(const std::string& filePath)
     try {
         nlohmann::json params_json;
         params_json["format_text"] = format_text_;
+        params_json["separator"] = separator_;
 
         std::ofstream file(filePath, std::ios::binary);
         if (!file.is_open()) {
@@ -305,6 +314,7 @@ bool HVFormat::load_params_from_json(const std::string& filePath)
         nlohmann::json params_json;
         file >> params_json;
         format_text_ = params_json.value("format_text", std::string());
+        separator_ = params_json.value("separator", std::string(kDefaultSeparator));
         return true;
     }
     catch (...) {
@@ -339,11 +349,18 @@ void HVFormat::set_host_services(NodeHostServices* host_services)
 
 int HVFormat::ApplyParam(int param_id, void* value_ptr)
 {
-    if (param_id != kFormatTextParamId || value_ptr == nullptr) {
+    if (value_ptr == nullptr) {
         return INVALID_PARAMS_NUM;
     }
-    format_text_ = *static_cast<std::string*>(value_ptr);
-    return SUCCESS;
+    if (param_id == kFormatTextParamId) {
+        format_text_ = *static_cast<std::string*>(value_ptr);
+        return SUCCESS;
+    }
+    if (param_id == kSeparatorParamId) {
+        separator_ = *static_cast<std::string*>(value_ptr);
+        return SUCCESS;
+    }
+    return INVALID_PARAMS_NUM;
 }
 
 int HVFormat::RenderFormatText()
@@ -384,8 +401,9 @@ int HVFormat::RenderFormatText()
         }
 
         std::string rendered_value;
-        hvref::ResolveError format_error =
-            hvref::FormatReferenceValue(resolved_value, rendered_value, token.format_spec);
+        const hvref::ResolveError format_error =
+            hvref::FormatListReferenceValue(resolved_value, rendered_value, separator_, token.format_spec);
+
         if (format_error != hvref::ResolveError::None) {
             error_message_key_ = ErrorToFormatMessageKey(format_error);
             return ALGORITHM_RUN_ERROR;
