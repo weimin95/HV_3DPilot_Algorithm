@@ -115,6 +115,10 @@ int HVSchemaNodeEngine::set_algorithm_params(
         if (input_fields_[field_index] == nullptr) {
             return INVALID_PARAMS_NUM;
         }
+        // nullptr 仅作为清除信号，跳过以避免误清空字段已有数据
+        if (params[i] == nullptr) {
+            continue;
+        }
         const int ret = input_fields_[field_index]->set_from_void(params[i]);
         if (ret != SUCCESS) {
             return ret;
