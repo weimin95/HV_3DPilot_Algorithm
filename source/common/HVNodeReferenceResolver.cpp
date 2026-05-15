@@ -1,4 +1,5 @@
 #include "HVNodeReferenceResolver.h"
+#include "data_type_registry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -54,18 +55,9 @@ bool IsGlobalVariableTokenHead(const std::string& token_head)
 const void* PointerFromHostValue(const NodeHostValue& value)
 {
     switch (value.type) {
-    case HV_INT:
-        return &value.int_value;
-    case HV_LONG:
-        return &value.long_value;
-    case HV_FLOAT:
-        return &value.float_value;
-    case HV_DOUBLE:
-        return &value.double_value;
-    case HV_BOOLEAN:
-        return &value.bool_value;
-    case HV_STRING:
-        return &value.string_value;
+    #define M(enum_name, cpp_type, keyword) case enum_name: return &value.keyword##_value;
+    HV_REGISTRY_SCALAR(M)
+    #undef M
     default:
         return nullptr;
     }
@@ -191,42 +183,14 @@ std::string TrimCopy(const std::string& text)
 int MapTypeNameToHvType(const std::string& type_name)
 {
     const std::string trimmed = TrimCopy(type_name);
-    if (trimmed == "int") {
-        return HV_INT;
-    }
-    if (trimmed == "long") {
-        return HV_LONG;
-    }
-    if (trimmed == "float") {
-        return HV_FLOAT;
-    }
-    if (trimmed == "double") {
-        return HV_DOUBLE;
-    }
-    if (trimmed == "bool") {
-        return HV_BOOLEAN;
-    }
-    if (trimmed == "string") {
-        return HV_STRING;
-    }
-    if (trimmed == "intList") {
-        return HV_INT_LIST;
-    }
-    if (trimmed == "longList") {
-        return HV_LONG_LIST;
-    }
-    if (trimmed == "floatList") {
-        return HV_FLOAT_LIST;
-    }
-    if (trimmed == "doubleList") {
-        return HV_DOUBLE_LIST;
-    }
-    if (trimmed == "boolList") {
-        return HV_BOOLEAN_LIST;
-    }
-    if (trimmed == "stringList") {
-        return HV_STRING_LIST;
-    }
+    // 标量类型
+    #define M(enum_name, cpp_type, keyword) if (trimmed == #keyword) return enum_name;
+    HV_REGISTRY_SCALAR(M)
+    #undef M
+    // 标量列表类型
+    #define M_LIST(enum_name, cpp_type, elem, keyword) if (trimmed == #keyword) return enum_name;
+    HV_REGISTRY_SCALAR_LIST(M_LIST)
+    #undef M_LIST
     return -1;
 }
 
@@ -234,12 +198,9 @@ int MapTypeNameToHvType(const std::string& type_name)
 static int SingleTypeFromListType(int list_type)
 {
     switch (list_type) {
-    case HV_INT_LIST:     return HV_INT;
-    case HV_LONG_LIST:    return HV_LONG;
-    case HV_FLOAT_LIST:   return HV_FLOAT;
-    case HV_DOUBLE_LIST:  return HV_DOUBLE;
-    case HV_BOOLEAN_LIST: return HV_BOOLEAN;
-    case HV_STRING_LIST:  return HV_STRING;
+    #define M_LIST(enum_name, cpp_type, elem, keyword) case enum_name: return elem;
+    HV_REGISTRY_SCALAR_LIST(M_LIST)
+    #undef M_LIST
     default:              return -1;
     }
 }
