@@ -76,6 +76,78 @@ std::string NumberLiteral(double value)
 
 }  // namespace
 
+void HVStringListExpressionField::SyncPublicValue()
+{
+    public_value_.values.clear();
+    public_value_.values.reserve(expressions_.size());
+    for (const std::string& expression : expressions_) {
+        public_value_.values.push_back(expression);
+    }
+}
+
+void* HVStringListExpressionField::current_value_ptr()
+{
+    if (!editable_ || !expose_current_value_) {
+        return nullptr;
+    }
+    SyncPublicValue();
+    return &public_value_;
+}
+
+int HVStringListExpressionField::set_from_void(void* value_ptr)
+{
+    if (!editable_) {
+        return value_ptr == nullptr ? SUCCESS : INVALID_PARAMS_NUM;
+    }
+
+    expressions_.clear();
+    if (value_ptr != nullptr) {
+        const auto* input_list = static_cast<const HVStringList*>(value_ptr);
+        expressions_.reserve(input_list->values.size());
+        for (size_t i = 0; i < input_list->values.size(); ++i) {
+            expressions_.push_back(
+                std::string(input_list->values[i].c_str(), input_list->values[i].size()));
+        }
+    }
+    SyncPublicValue();
+    return SUCCESS;
+}
+
+bool HVStringListExpressionField::save_value(nlohmann::json& out_entry) const
+{
+    if (!persist_) {
+        return true;
+    }
+
+    out_entry["name"] = storage_key_.empty() ? schema_name_ : storage_key_;
+    out_entry["type"] = hv_type();
+    out_entry["value"] = nlohmann::json::array();
+    for (const std::string& expression : expressions_) {
+        out_entry["value"].push_back(expression);
+    }
+    return true;
+}
+
+bool HVStringListExpressionField::load_value(const nlohmann::json& entry_json)
+{
+    if (!persist_) {
+        return true;
+    }
+    if (!entry_json.contains("value") || !entry_json["value"].is_array()) {
+        return false;
+    }
+
+    expressions_.clear();
+    for (const auto& item : entry_json["value"]) {
+        if (!item.is_string()) {
+            return false;
+        }
+        expressions_.push_back(item.get<std::string>());
+    }
+    SyncPublicValue();
+    return true;
+}
+
 HVVariableCalculate::HVVariableCalculate()
 {
     expression_list_
@@ -108,6 +180,7 @@ int HVVariableCalculate::init()
 {
     ResetRuntimeState();
     result_list_.value().values.clear();
+    expression_list_.SyncPublicValue();
     return SUCCESS;
 }
 
@@ -122,12 +195,12 @@ int HVVariableCalculate::run()
         return FailCalculation(ALGORITHM_RUN_ERROR, "msg.host_services_missing");
     }
 
-    if (expression_list_.value().values.empty()) {
+    if (expression_list_.expressions().empty()) {
         return FailCalculation(ALGORITHM_RUN_ERROR, "msg.invalid_expression");
     }
 
-    for (size_t i = 0; i < expression_list_.value().values.size(); ++i) {
-        const std::string expression_text = expression_list_.value().values[i].c_str();
+    for (size_t i = 0; i < expression_list_.expressions().size(); ++i) {
+        const std::string expression_text = expression_list_.expressions()[i];
         double value = 0.0;
         const int eval_ret = EvaluateExpressionText(expression_text, value);
         if (eval_ret != SUCCESS) {

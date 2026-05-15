@@ -1,8 +1,87 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "HVSchemaNodeEngine.h"
+
+class HVStringListExpressionField final : public HVInputFieldBase {
+public:
+    HVStringListExpressionField& SetSchemaName(const std::string& schema_name)
+    {
+        schema_name_ = schema_name;
+        return *this;
+    }
+
+    HVStringListExpressionField& SetStorageKey(const std::string& storage_key)
+    {
+        storage_key_ = storage_key;
+        return *this;
+    }
+
+    HVStringListExpressionField& SetDisplayNameResolver(std::function<std::string()> resolver)
+    {
+        display_name_resolver_ = std::move(resolver);
+        return *this;
+    }
+
+    HVStringListExpressionField& SetDescriptionResolver(std::function<std::string()> resolver)
+    {
+        description_resolver_ = std::move(resolver);
+        return *this;
+    }
+
+    HVStringListExpressionField& SetBindable(bool bindable)
+    {
+        bindable_ = bindable;
+        return *this;
+    }
+
+    HVStringListExpressionField& SetEditable(bool editable)
+    {
+        editable_ = editable;
+        return *this;
+    }
+
+    HVStringListExpressionField& SetPersist(bool persist)
+    {
+        persist_ = persist;
+        return *this;
+    }
+
+    HVStringListExpressionField& SetParamGroup(ParamGroupType param_group)
+    {
+        param_group_ = param_group;
+        return *this;
+    }
+
+    const std::vector<std::string>& expressions() const
+    {
+        return expressions_;
+    }
+
+    std::vector<std::string>& expressions()
+    {
+        return expressions_;
+    }
+
+    void SyncPublicValue();
+
+    void* current_value_ptr() override;
+    int set_from_void(void* value_ptr) override;
+    bool save_value(nlohmann::json& out_entry) const override;
+    bool load_value(const nlohmann::json& entry_json) override;
+
+protected:
+    int declared_hv_type() const override
+    {
+        return HV_STRING_LIST;
+    }
+
+private:
+    std::vector<std::string> expressions_;
+    mutable HVStringList public_value_;
+};
 
 class HVVariableCalculate : public HVSchemaNodeEngine {
 public:
@@ -24,7 +103,7 @@ private:
     int FailCalculation(int status, const std::string& message_key);
 
 private:
-    HVInputField<HVStringList> expression_list_;
+    HVStringListExpressionField expression_list_;
 
     HVOutputField<HVDoubleList> result_list_;
     HVOutputField<int> execute_status_output_;

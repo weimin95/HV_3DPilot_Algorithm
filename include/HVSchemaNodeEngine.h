@@ -43,6 +43,51 @@ struct HVFieldJsonTraits {
     }
 };
 
+template <typename T>
+struct HVFieldValueCopyTraits {
+    static void Copy(const T& source_value, T& target_value)
+    {
+        target_value = source_value;
+    }
+};
+
+template <typename TValue>
+struct HVFieldValueCopyTraits<HVValueList<TValue>> {
+    static void Copy(const HVValueList<TValue>& source_value, HVValueList<TValue>& target_value)
+    {
+        target_value.values.clear();
+        target_value.values.reserve(source_value.values.size());
+        for (size_t i = 0; i < source_value.values.size(); ++i) {
+            target_value.values.push_back(source_value.values[i]);
+        }
+    }
+};
+
+template <>
+struct HVFieldValueCopyTraits<HVStringList> {
+    static void Copy(const HVStringList& source_value, HVStringList& target_value)
+    {
+        target_value.values.clear();
+        target_value.values.reserve(source_value.values.size());
+        for (size_t i = 0; i < source_value.values.size(); ++i) {
+            target_value.values.push_back(
+                std::string(source_value.values[i].c_str(), source_value.values[i].size()));
+        }
+    }
+};
+
+template <typename TValue>
+struct HVFieldValueCopyTraits<HVSharedPtrList<TValue>> {
+    static void Copy(const HVSharedPtrList<TValue>& source_value, HVSharedPtrList<TValue>& target_value)
+    {
+        target_value.values.clear();
+        target_value.values.reserve(source_value.values.size());
+        for (size_t i = 0; i < source_value.values.size(); ++i) {
+            target_value.values.push_back(source_value.values[i]);
+        }
+    }
+};
+
 template <>
 struct HVFieldJsonTraits<int> {
     static constexpr bool kSupported = true;
@@ -650,7 +695,7 @@ public:
             return SUCCESS;
         }
 
-        value_ = *static_cast<T*>(value_ptr);
+        HVFieldValueCopyTraits<T>::Copy(*static_cast<T*>(value_ptr), value_);
         return SUCCESS;
     }
 
@@ -804,10 +849,15 @@ public:
     void set_host_services(NodeHostServices* host_services) override;
 
 protected:
+    void RegisterInputField(HVInputFieldBase& field)
+    {
+        input_fields_.push_back(&field);
+    }
+
     template <typename T>
     void RegisterInputField(HVInputField<T>& field)
     {
-        input_fields_.push_back(&field);
+        RegisterInputField(static_cast<HVInputFieldBase&>(field));
     }
 
     template <typename T>
